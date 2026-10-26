@@ -1,109 +1,75 @@
-# ⚡ Realtime Power Card for Home Assistant
+# ⚡ Realtime Power Card for Home Assistant (`v1.0.1`)
 
-[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub release](https://img.shields.io/github/v/release/HavenFlow/realtime-power-card?include_prereleases=&sort=semver&color=blue)](https://github.com/HavenFlow/realtime-power-card/releases)
+[![HACS Validation](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
+[![Version](https://img.shields.io/badge/version-1.0.1-00e5ff.svg)](https://github.com/HavenFlow/realtime-power-card/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Version:** `1.0.0`
-
-A modern, highly customizable Lovelace card for **Home Assistant** that synchronizes monitored appliances from the **Energy Dashboard** to display **real-time power consumption (W / kW)** alongside **daily energy usage (kWh)**.
-
-Featuring an interactive **Visual GUI Editor**, a **unified cross-platform Desktop Spectrum Color Picker** (identical on mobile and desktop browsers), **seamless 3D solid extruded prism bars**, multi-level **Sankey diagrams**, and a customizable **header history chart** with **progressive "From Start of Day (00:00)"** mode.
+An advanced Lovelace card for **Home Assistant** that visualizes real-time power consumption (**W / kW**) and daily energy usage (**kWh**) directly synced with your **Energy Dashboard**.
 
 ---
 
-## 🌟 Key Features in v1.0.0
+## ✨ Features (`v1.0.1`)
 
-* **Direct Energy Dashboard Integration:** Automatically imports devices, parent-child hierarchies (`included_in_stat`), and active power sensors (`stat_rate`) directly from your Home Assistant Energy Panel.
-* **Seamless 3D Solid Extruded Prism Bars:**
-  * Engineered with Phong/Lambert surface shading (lit top face, smooth front gradient, deep-shaded right end-cap) and sub-pixel vertex overlapping (`0.5px`).
-  * Eliminates wireframe border gaps and double-line artifacts so every bar looks like a solid, monolithic 3D block.
-* **Header Background History Chart (`00:00 -> Now` & Rolling Modes):**
-  * **From Start of Day (`today`):** Starts at `00:00` (midnight) and fills progressively from left to right as the day unfolds. Future time slots remain dimmed on the LED matrix until reached.
-  * **Rolling Window (`rolling`):** Displays the last $X$ hours (e.g., 24h).
-  * 4 visual styles: **Segmented LED Equalizer**, **Combo (Bars + Line & Nodes)**, **Smooth Area Line**, and **Classic Bars**.
-* **Unified Cross-Platform Color Picker (Desktop Spectrum on Mobile & PC):**
-  * Replaces inconsistent native mobile OS color dialogs with a built-in **2D Saturation/Brightness Spectrum Box + Rainbow Hue Slider + HEX/RGB inputs + Preset Swatches** that looks and behaves identically on Android, iOS, and desktop browsers.
-* **Sub-device & Hierarchy Handling:**
-  * Sub-devices are excluded from the *Untracked / Other* calculation to prevent double-counting.
-  * Supports bracketed display `(299,3 W • 0,28 kWh)`, parent load subtraction, or hiding.
+* **🔄 Auto-Sync with Energy Dashboard:** Automatically fetches devices configured in the HA Energy Dashboard, pairs energy entities (`kWh`) with their corresponding power sensors (`W`/`kW`), and maps parent-child hierarchy (`included_in_stat`).
+* **🧊 Cohesive 3D Solid Prism Bars:** Bars are rendered as seamless, solid 3D cuboids featuring realistic face shading, a 0.6px micro-overlap to eliminate subpixel seams, diagonal glass reflections, and neon floor glow.
+* **📊 Header History Chart:**
+  * **Time Range Modes:**
+    * **`today` (Start of Day 00:00 - 24:00):** The chart starts at midnight and fills dynamically as the day progresses. Future hours remain unlit.
+    * **`rolling` (Last X hours):** A sliding time window (1 - 168 hours).
+  * **4 Visual Styles:** *Segmented LED Equalizer*, *Combo (Bars + Line & Nodes)*, *Smooth Area Line*, and *Classic Columns*.
+* **📈 5 Main Chart Types:**
+  1. **Horizontal Bar Chart (`bar`)** – features smooth sorting animations.
+  2. **Pie Chart (`pie`)** – displays device icons inside the slices.
+  3. **Donut Chart (`donut`)** – shows the total power and daily kWh in the center.
+  4. **Horizontal Sankey Flow (`sankey_h`)** – multi-level tree: *Grid -> Main Circuits -> Sub-devices*.
+  5. **Vertical Sankey Flow (`sankey_v`)**.
+* **🎨 Unified Spectrum Color Picker:** A custom-built modal featuring a 2D Saturation/Value map, Hue slider, HEX/RGB inputs, and quick presets. Ensures a consistent UI experience across both desktop and mobile devices, forcing maximum z-index to overlay HA dialogs.
+* **🌍 Regional Formatting & Units:** Automatically converts units to `kW` above `1000 W` and applies regional number formatting (e.g., `1,95 kW • 12,13 kWh` vs `1.95 kW • 12.13 kWh`).
 
 ---
 
 ## 📦 Installation
 
-### Method 1: HACS (Recommended)
+### HACS (Recommended)
+1. Open **HACS** in Home Assistant -> **Frontend**.
+2. Click the menu in the top right corner (⋮) -> **Custom repositories**.
+3. Paste the URL: `https://github.com/HavenFlow/realtime-power-card` and select **Dashboard (Lovelace)** as the category.
+4. Install **Realtime Power Card** and refresh your browser.
 
-1. Open **HACS** in your Home Assistant instance.
-2. Go to **Frontend** → Click the **three dots** in the top right corner → Select **Custom repositories**.
-3. Paste the repository URL:
-   `https://github.com/HavenFlow/realtime-power-card`
-4. Set category to **Dashboard** and click **Add**.
-5. Download **Realtime Power Card** and reload your browser.
-
-### Method 2: Manual Installation
-
-1. Download `realtime-power-card.js` from the latest [Release](https://github.com/HavenFlow/realtime-power-card/releases).
-2. Copy the file into `/config/www/realtime-power-card.js`.
-3. Add `/local/realtime-power-card.js` as a **JavaScript Module** in **Settings** → **Dashboards** → **Resources**.
+### Manual Installation
+1. Download `realtime-power-card.js` from the [Releases](https://github.com/HavenFlow/realtime-power-card/releases) page.
+2. Copy it into your `/config/www/` directory.
+3. Go to **Settings -> Dashboards -> Resources** and add:
+   * URL: `/local/realtime-power-card.js?v=1.0.1`
+   * Type: `JavaScript Module`
 
 ---
 
-## ⚙️ Configuration Reference (YAML)
+## ⚙️ Configuration (Visual GUI Editor)
 
-All options can be configured visually via the built-in GUI Editor or via YAML:
+This card includes a 100% complete visual editor. Just add the card to your dashboard and your Energy Panel devices will be loaded automatically:
 
-```yaml
-type: custom:realtime-power-card
-chart_type: bar # bar | pie | donut | sankey_h | sankey_v
-total_power_entity: sensor.inverter_load_power
-total_energy_entity: sensor.house_daily_energy_kwh
-show_daily_kwh_devices: true
-show_daily_kwh_total: true
-unit_kw_above_1kw: true
-min_power_threshold: 4
-sub_device_mode: bracket # bracket | normal | hide
-
-# Header & Progressive Daily History
-header_history_enable: true
-header_history_mode: today # today (from 00:00, fills over time) | rolling (last X hours)
-header_history_type: led   # led | combo | line | bar
-header_history_hours: 24
-header_history_buckets: 48
-header_total_prefix: "Całkowite zużycie:"
-header_color_max: "#7ce8ff"
-header_color_min: "#005b8f"
-
-# Seamless 3D Solid Prism Style
-bar_style: 3d # 3d | gradient | glass | flat
-bar_3d_depth: 9
-bar_height: 28
-bar_shadow: true
-bar_opacity: 95
-card_glass: false
-
-devices:
-  - entity: sensor.klima_pietro_power
-    energy_entity: sensor.klima_pietro_daily_kwh
-    name: Klima Piętro
-    icon: mdi:air-conditioner
-    color: "#b324ff"
-  - entity: sensor.silownia_power
-    energy_entity: sensor.silownia_daily_kwh
-    name: Siłownia
-    icon: mdi:dumbbell
-    color: "#26e6c9"
-  - entity: sensor.pc_power
-    energy_entity: sensor.pc_daily_kwh
-    name: PC
-    icon: mdi:desktop-tower-monitor
-    color: "#ff2a6d"
-    is_child: true
-    parent_entity: sensor.silownia_power
-```
+    type: custom:realtime-power-card
+    chart_type: bar
+    bar_style: 3d
+    header_history_enable: true
+    header_history_mode: today
+    header_history_type: led
+    show_daily_kwh_devices: true
+    show_daily_kwh_total: true
+    unit_kw_above_1kw: true
 
 ---
 
-## 📄 License
+## 🔧 Core YAML Parameters
 
-Licensed under the [MIT License](LICENSE).
+| Parameter | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `chart_type` | `string` | `'bar'` | `'bar'`, `'pie'`, `'donut'`, `'sankey_h'`, `'sankey_v'` |
+| `total_power_entity` | `string` | `""` | Total house power entity (empty = auto from Energy Panel) |
+| `hierarchy_mode` | `string` | `'brackets'` | Sub-device handling: `'brackets'` (show in brackets), `'subtract'` (deduct from parent), `'hide'` (hide completely) |
+| `header_history_enable` | `boolean` | `true` | Enables the background history chart in the header |
+| `header_history_mode` | `string` | `'today'` | `'today'` (from 00:00, live fill) or `'rolling'` (last X hours) |
+| `header_history_type` | `string` | `'combo'` | `'led'`, `'combo'`, `'line'`, `'bar'` |
+| `bar_style` | `string` | `'3d'` | `'3d'` (solid 3D prism), `'gradient'`, `'glass'`, `'flat'` |
+| `bar_3d_depth` | `number` | `10` | 3D depth in pixels for the prism effect (`4-24`) |
