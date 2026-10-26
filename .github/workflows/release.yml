@@ -1,0 +1,23 @@
+name: Release Asset
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  upload-asset:
+    name: Upload JS to Release Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Upload realtime-power-card.js
+        uses: softprops/action-gh-release@v2
+        with:
+          files: realtime-power-card.js
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
