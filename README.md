@@ -1,14 +1,14 @@
-# ⚡ Realtime Power Card for Home Assistant (`v1.0.1`)
+# ⚡ Realtime Power Card for Home Assistant (`v1.0.2`)
 
 [![HACS Validation](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-1.0.1-00e5ff.svg)](https://github.com/HavenFlow/realtime-power-card/releases)
+[![Version](https://img.shields.io/badge/version-1.0.2-00e5ff.svg)](https://github.com/HavenFlow/realtime-power-card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 An advanced Lovelace card for **Home Assistant** that visualizes real-time power consumption (**W / kW**) and daily energy usage (**kWh**) directly synced with your **Energy Dashboard**.
 
 ---
 
-## ✨ Features (`v1.0.1`)
+## ✨ Features (`v1.0.2`)
 
 * **🔄 Auto-Sync with Energy Dashboard:** Automatically fetches devices configured in the HA Energy Dashboard, pairs energy entities (`kWh`) with their corresponding power sensors (`W`/`kW`), and maps parent-child hierarchy (`included_in_stat`).
 * **🧊 Cohesive 3D Solid Prism Bars:** Bars are rendered as seamless, solid 3D cuboids featuring realistic face shading, a 0.6px micro-overlap to eliminate subpixel seams, diagonal glass reflections, and neon floor glow.
@@ -23,7 +23,7 @@ An advanced Lovelace card for **Home Assistant** that visualizes real-time power
   3. **Donut Chart (`donut`)** – shows the total power and daily kWh in the center.
   4. **Horizontal Sankey Flow (`sankey_h`)** – multi-level tree: *Grid -> Main Circuits -> Sub-devices*.
   5. **Vertical Sankey Flow (`sankey_v`)**.
-* **🎨 Unified Spectrum Color Picker:** A custom-built modal featuring a 2D Saturation/Value map, Hue slider, HEX/RGB inputs, and quick presets. Ensures a consistent UI experience across both desktop and mobile devices, forcing maximum z-index to overlay HA dialogs.
+* **🎨 Unified Top-Layer Spectrum Color Picker:** A custom-built modal using native `<dialog>.showModal()` to render in the browser's `#top-layer` above Home Assistant's configuration dialogs across both desktop and mobile devices.
 * **🌍 Regional Formatting & Units:** Automatically converts units to `kW` above `1000 W` and applies regional number formatting (e.g., `1,95 kW • 12,13 kWh` vs `1.95 kW • 12.13 kWh`).
 
 ---
@@ -40,7 +40,7 @@ An advanced Lovelace card for **Home Assistant** that visualizes real-time power
 1. Download `realtime-power-card.js` from the [Releases](https://github.com/HavenFlow/realtime-power-card/releases) page.
 2. Copy it into your `/config/www/` directory.
 3. Go to **Settings -> Dashboards -> Resources** and add:
-   * URL: `/local/realtime-power-card.js?v=1.0.1`
+   * URL: `/local/realtime-power-card.js?v=1.0.2`
    * Type: `JavaScript Module`
 
 ---

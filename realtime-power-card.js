@@ -1,12 +1,12 @@
 /**
  * Realtime Power Card for Home Assistant
- * Version: 1.0.1
+ * Version: 1.0.2
  * Author: HavenFlow
  * License: MIT
  * Repository: https://github.com/HavenFlow/realtime-power-card
  */
 
-const CARD_VERSION = "1.0.1";
+const CARD_VERSION = "1.0.2";
 
 console.info(
   `%c ⚡ REALTIME-POWER-CARD %c v${CARD_VERSION} `,
@@ -479,7 +479,9 @@ function localize(hass, configLang, key) {
 }
 
 /* ============================================================================
- * UNIFIED DESKTOP-STYLE CHROMIUM COLOR PICKER POPOVER (v1.0.1 Z-Index Fix)
+ * UNIFIED DESKTOP-STYLE CHROMIUM COLOR PICKER (v1.0.2 Top Layer <dialog> Fix)
+ * Uses native HTML5 <dialog>.showModal() to enter the browser's #top-layer,
+ * guaranteeing it renders above Home Assistant's modal ha-dialog editor!
  * ============================================================================ */
 class DesktopColorPopover {
   static open(initialHex, onChange, hass, configLang) {
@@ -489,26 +491,39 @@ class DesktopColorPopover {
     const rgb = hexToRgb(startHex);
     let hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
 
-    const overlay = document.createElement("div");
-    overlay.id = "rpc-desktop-color-overlay";
-    // FIX v1.0.1: Force maximum z-index to overlay HA config dialogs
-    overlay.style.cssText = `
-      position: fixed !important; inset: 0 !important; z-index: 2147483647 !important;
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(2px);
-      display: flex; align-items: center; justify-content: center;
-      touch-action: none; user-select: none; -webkit-user-select: none;
+    // Native <dialog> element promoted to #top-layer via showModal()
+    const modal = document.createElement("dialog");
+    modal.id = "rpc-desktop-color-dialog";
+    modal.style.cssText = `
+      border: none !important;
+      padding: 0 !important;
+      margin: auto !important;
+      background: transparent !important;
+      overflow: visible !important;
+      max-width: none !important;
+      max-height: none !important;
+      z-index: 2147483647 !important;
+      outline: none !important;
     `;
 
     const dialog = document.createElement("div");
     dialog.style.cssText = `
       width: 285px; background: #1e2229; color: #f1f5f9;
       border: 1px solid #3b4252; border-radius: 12px;
-      box-shadow: 0 22px 48px rgba(0,0,0,0.8);
+      box-shadow: 0 22px 48px rgba(0,0,0,0.85);
       padding: 14px; font-family: system-ui, -apple-system, Roboto, sans-serif;
+      touch-action: none; user-select: none; -webkit-user-select: none;
+      box-sizing: border-box;
     `;
 
     dialog.innerHTML = `
+      <style>
+        dialog#rpc-desktop-color-dialog::backdrop {
+          background: rgba(0, 0, 0, 0.55) !important;
+          backdrop-filter: blur(2px) !important;
+          -webkit-backdrop-filter: blur(2px) !important;
+        }
+      </style>
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <span style="font-size:13.5px; font-weight:700;">${t("cp_title")}</span>
         <button type="button" id="rpc-cp-close" style="background:none; border:none; color:#94a3b8; font-size:18px; cursor:pointer; padding:0 4px;">✕</button>
@@ -558,9 +573,34 @@ class DesktopColorPopover {
       </div>
     `;
 
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-    this._activeOverlay = overlay;
+    modal.appendChild(dialog);
+    document.body.appendChild(modal);
+    this._activeOverlay = modal;
+
+    // Promote directly into browser #top-layer above HA's modal dialog
+    if (typeof modal.showModal === "function") {
+      try {
+        modal.showModal();
+      } catch (e) {
+        modal.setAttribute("open", "");
+      }
+    } else {
+      modal.setAttribute("open", "");
+    }
+
+    // Stop propagation of Escape / cancel so closing the color picker doesn't close HA's editor dialog
+    modal.addEventListener("cancel", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      this.close();
+    });
+    modal.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.close();
+      }
+    });
 
     const svBox = dialog.querySelector("#rpc-sv-box");
     const svBg = dialog.querySelector("#rpc-sv-bg");
@@ -658,14 +698,23 @@ class DesktopColorPopover {
 
     dialog.querySelector("#rpc-cp-close").addEventListener("click", () => this.close());
     dialog.querySelector("#rpc-cp-done").addEventListener("click", () => this.close());
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) this.close(); });
+    modal.addEventListener("mousedown", (e) => {
+      if (e.target === modal) this.close();
+    });
 
     syncUI(false);
   }
 
   static close() {
-    if (this._activeOverlay && this._activeOverlay.parentNode) {
-      this._activeOverlay.parentNode.removeChild(this._activeOverlay);
+    if (this._activeOverlay) {
+      try {
+        if (typeof this._activeOverlay.close === "function" && this._activeOverlay.open) {
+          this._activeOverlay.close();
+        }
+      } catch (e) {}
+      if (this._activeOverlay.parentNode) {
+        this._activeOverlay.parentNode.removeChild(this._activeOverlay);
+      }
     }
     this._activeOverlay = null;
   }
@@ -864,7 +913,7 @@ function getFallbackStorageEnergySensorPrefs(hass) {
 }
 
 // ==========================================
-// GŁÓWNA KLASA KARTY (v1.0.1)
+// MAIN CARD CLASS (v1.0.2)
 // ==========================================
 class RealtimePowerCard extends HTMLElement {
   constructor() {
@@ -1083,7 +1132,6 @@ class RealtimePowerCard extends HTMLElement {
     }
   }
 
-  // Obsługa historii w nagłówku: tryb 'today' (od 00:00 do 24:00, uzupełniany z upływem czasu) lub 'rolling' (ostatnie X h)
   async _maybeFetchHeaderHistory(force = false) {
     if (!this._hass || !this._config.header_history_enable) return;
     const totalEnt = this._getEffectiveTotalEntity();
@@ -1148,7 +1196,7 @@ class RealtimePowerCard extends HTMLElement {
         for (let i = 0; i < buckets; i++) {
           const bStart = startMs + i * bucketDuration;
           if (mode === "today" && bStart > now) {
-            series.push(null); // Przyszłe godziny (jeszcze nie nadeszły)
+            series.push(null);
           } else {
             if (bucketCounts[i] > 0) {
               lastKnown = bucketSums[i] / bucketCounts[i];
@@ -1183,7 +1231,6 @@ class RealtimePowerCard extends HTMLElement {
     return unit === "kw" ? val * 1000 : val;
   }
 
-  // Regionalne formatowanie wartości W / kW (przecinek lub kropka zależnie od języka)
   _formatWatts(w) {
     const locale = getEffectiveLocale(this._hass, this._config.language);
     const useKwAbove1000 = this._config.unit_kw_above_1kw !== false;
@@ -1193,7 +1240,6 @@ class RealtimePowerCard extends HTMLElement {
     return `${formatRegionalNumber(w, locale, 1, 0)} W`;
   }
 
-  // Regionalne formatowanie kWh
   _formatKwh(kwh) {
     if (kwh === null || kwh === undefined || isNaN(kwh)) return null;
     const locale = getEffectiveLocale(this._hass, this._config.language);
@@ -1681,7 +1727,6 @@ class RealtimePowerCard extends HTMLElement {
     };
   }
 
-  // Generowanie stylów dla słupków (Spójna, jednolita bryła izometryczna 3D bez drucianych ramek)
   _getBarFillStyle(color, widthPct, depth3d) {
     const styleType = this._config.bar_style || "gradient";
     const opacity = (Number(this._config.bar_opacity ?? 92) / 100).toFixed(2);
@@ -1703,7 +1748,6 @@ class RealtimePowerCard extends HTMLElement {
     if (styleType === "gradient") {
       bgCss = `background: linear-gradient(90deg, ${darkRgba} 0%, ${baseRgba} 55%, ${lightRgba} 100%);`;
     } else if (styleType === "3d") {
-      // Spójna bryła 3D (górna ścianka najjaśniejsza, front z płynnym gradientem i ukośnym połyskiem, prawa ścianka w cieniu)
       const frontTop = hexToRgba(lightHex, opacity);
       const frontMid = hexToRgba(color, opacity);
       const frontBot = hexToRgba(darkHex, opacity);
@@ -1844,7 +1888,6 @@ class RealtimePowerCard extends HTMLElement {
       const spaceOutsidePx = trackWidthPx - barPx - dims.depth3d;
       const estimatedTextWidthPx = item.formattedValue.length * (dims.valueFontSize * 0.62) + 18;
 
-      // Domyślnie POZA słupkiem; wewnątrz tylko gdy na zewnątrz się nie mieści
       const fitsOutside = spaceOutsidePx >= estimatedTextWidthPx;
       const textInside = !fitsOutside && barPx >= estimatedTextWidthPx - 6;
 
@@ -2372,7 +2415,6 @@ class RealtimePowerCard extends HTMLElement {
         flex-direction: column;
       }
 
-      /* Nagłówek wyrównany do góry z konfigurowalnym przesunięciem w dół (px) */
       #header_wrap {
         display: ${showHeaderBox ? "flex" : "none"};
         position: relative;
@@ -2507,7 +2549,7 @@ class RealtimePowerCard extends HTMLElement {
         flex-shrink: 0;
       }
 
-      /* SPÓJNA BRYŁA IZOMETRYCZNA 3D (Górna i Prawa ścianka z mikro-zakładką 0.6px, bez drucianych ramek) */
+      /* COHESIVE 3D ISOMETRIC PRISM (Top & Right faces with 0.6px micro-overlap, zero wireframe gaps) */
       .bar-fill.prism-3d {
         border-radius: 0;
         border: none;
@@ -2672,7 +2714,7 @@ class RealtimePowerCard extends HTMLElement {
 }
 
 // ==========================================
-// EDYTOR GRAFICZNY (GUI v1.0.1)
+// VISUAL GUI EDITOR (v1.0.2)
 // ==========================================
 class RealtimePowerCardEditor extends HTMLElement {
   constructor() {
@@ -2720,7 +2762,7 @@ class RealtimePowerCardEditor extends HTMLElement {
       }
 
       if (!prefs) {
-        alert("Nie udało się pobrać konfiguracji Panelu Energii.");
+        alert("Failed to fetch Energy Dashboard configuration.");
         return;
       }
 
@@ -2786,7 +2828,7 @@ class RealtimePowerCardEditor extends HTMLElement {
 
       this._updateConfig({ devices: merged, total_power_entity: nextTotal });
     } catch (e) {
-      alert("Błąd odczytu Panelu Energii: " + e.message);
+      alert("Energy Dashboard read error: " + e.message);
     }
   }
 
@@ -2936,7 +2978,6 @@ class RealtimePowerCardEditor extends HTMLElement {
           background: var(--card-background-color, #1e1e1e); color: var(--primary-text-color, #fff);
           font-size: 0.9rem; width: 100%; box-sizing: border-box;
         }
-        /* Jednolity przycisk otwierający okno wyboru koloru w stylu przeglądarki PC (na telefonie i komputerze) */
         .color-swatch-btn {
           width: 42px; height: 34px; border-radius: 6px;
           border: 1.5px solid rgba(255, 255, 255, 0.45);
@@ -3034,9 +3075,7 @@ class RealtimePowerCardEditor extends HTMLElement {
         <div class="row-inline"><label>${t("unit_kw_above_1kw")}</label><input type="checkbox" id="cfg_unit_kw" ${this._config.unit_kw_above_1kw !== false ? "checked" : ""}></div>
         <div class="row-inline"><label>${t("show_percentage")}</label><input type="checkbox" id="cfg_show_pct" ${this._config.show_percentage ? "checked" : ""}></div>
 
-        <!-- ======================================================== -->
-        <!-- SEKCJA NAGŁÓWKA I WYKRESU HISTORII W TLE -->
-        <!-- ======================================================== -->
+        <!-- HEADER & BACKGROUND HISTORY CHART SECTION -->
         <div class="section-title">${t("header_section")}</div>
 
         <div class="grid-2">
@@ -3213,9 +3252,7 @@ class RealtimePowerCardEditor extends HTMLElement {
         <div class="row-inline"><label>${t("header_effect_3d")}</label><input type="checkbox" id="cfg_hh_3d" ${this._config.header_effect_3d !== false ? "checked" : ""}></div>
         <div class="row-inline"><label>${t("header_effect_glass")}</label><input type="checkbox" id="cfg_hh_glass" ${this._config.header_effect_glass !== false ? "checked" : ""}></div>
 
-        <!-- ======================================================== -->
-        <!-- SORTOWANIE I FILTROWANIE URZĄDZEŃ -->
-        <!-- ======================================================== -->
+        <!-- SORTING & DEVICE FILTERING -->
         <div class="section-title">${t("sort_mode")}</div>
         <div class="grid-2">
           <div class="row">
@@ -3261,7 +3298,7 @@ class RealtimePowerCardEditor extends HTMLElement {
         <div class="row-inline"><label>${t("icons_only")}</label><input type="checkbox" id="cfg_icons_only" ${this._config.icons_only ? "checked" : ""}></div>
         <div class="row-inline"><label>${t("icons_inside_charts")}</label><input type="checkbox" id="cfg_icons_inside" ${this._config.icons_inside_charts !== false ? "checked" : ""}></div>
 
-        <!-- ROZMIAR KARTY I SKALOWANIE -->
+        <!-- CARD SIZE & SCALING -->
         <div class="section-title">${t("size_header")}</div>
         <div class="row">
           <label>${t("size_mode")}</label>
@@ -3294,7 +3331,7 @@ class RealtimePowerCardEditor extends HTMLElement {
           }
         </div>
 
-        <!-- EFEKTY WIZUALNE -->
+        <!-- VISUAL EFFECTS -->
         <div class="section-title">${t("effects_header")}</div>
         <div class="grid-2">
           <div class="row">
@@ -3340,9 +3377,9 @@ class RealtimePowerCardEditor extends HTMLElement {
             <input type="number" id="cfg_bg_overlay" min="0" max="95" value="${this._config.bg_overlay_opacity ?? 60}">
           </div>
         </div>
-        <div class="row"><label>${t("bg_image")}</label><input type="text" id="cfg_bg_image" placeholder="/local/background.jpg lub https://..." value="${this._config.background_image || ""}"></div>
+        <div class="row"><label>${t("bg_image")}</label><input type="text" id="cfg_bg_image" placeholder="/local/background.jpg or https://..." value="${this._config.background_image || ""}"></div>
 
-        <!-- RĘCZNE WYMIARY PIXELOWE -->
+        <!-- MANUAL PIXEL DIMENSIONS -->
         <div class="section-title">${t("appearance_header")}</div>
         <div class="grid-2">
           <div class="row"><label>${t("bar_height")}</label><input type="number" id="cfg_bar_height" min="12" max="80" value="${this._config.bar_height ?? 28}" ${isFixedSize ? "disabled" : ""}></div>
@@ -3357,7 +3394,7 @@ class RealtimePowerCardEditor extends HTMLElement {
           <div class="row"><label>${t("sankey_height")}</label><input type="number" id="cfg_sankey_height" min="180" max="900" value="${this._config.sankey_height ?? 360}"></div>
         </div>
 
-        <!-- LISTA URZĄDZEŃ -->
+        <!-- DEVICE LIST -->
         <div class="section-title">${t("devices_header")}</div>
         <div class="btn-bar">
           <button type="button" id="btn_sync">${t("sync_btn")}</button>
@@ -3437,7 +3474,6 @@ class RealtimePowerCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("cfg_unit_kw").addEventListener("change", (e) => this._updateConfig({ unit_kw_above_1kw: e.target.checked }));
     this.shadowRoot.getElementById("cfg_show_pct").addEventListener("change", (e) => this._updateConfig({ show_percentage: e.target.checked }));
 
-    // Nagłówek i wykres historii w tle
     this.shadowRoot.getElementById("cfg_show_subtitle").addEventListener("change", (e) => this._updateConfig({ show_total_subtitle: e.target.checked }));
     this.shadowRoot.getElementById("cfg_hdr_prefix").addEventListener("change", (e) => this._updateConfig({ header_total_prefix: e.target.value }));
     this.shadowRoot.getElementById("cfg_hdr_total_font").addEventListener("change", (e) => this._updateConfig({ header_total_font_size: Number(e.target.value) }));
@@ -3514,7 +3550,6 @@ class RealtimePowerCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("cfg_hh_3d").addEventListener("change", (e) => this._updateConfig({ header_effect_3d: e.target.checked }));
     this.shadowRoot.getElementById("cfg_hh_glass").addEventListener("change", (e) => this._updateConfig({ header_effect_glass: e.target.checked }));
 
-    // Sortowanie i opcje ogólne
     this.shadowRoot.getElementById("cfg_sort_mode").addEventListener("change", (e) => this._updateConfig({ sort_mode: e.target.value }));
     this.shadowRoot.getElementById("cfg_sort_rev").addEventListener("change", (e) => this._updateConfig({ sort_reverse: e.target.checked }));
     this.shadowRoot.getElementById("cfg_min_power").addEventListener("change", (e) => this._updateConfig({ min_power_threshold: Number(e.target.value) }));
@@ -3534,7 +3569,6 @@ class RealtimePowerCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("cfg_icons_only").addEventListener("change", (e) => this._updateConfig({ icons_only: e.target.checked }));
     this.shadowRoot.getElementById("cfg_icons_inside").addEventListener("change", (e) => this._updateConfig({ icons_inside_charts: e.target.checked }));
 
-    // Skalowanie i rozmiar
     this.shadowRoot.getElementById("cfg_size_mode").addEventListener("change", (e) => this._updateConfig({ size_mode: e.target.value }));
     this.shadowRoot.getElementById("cfg_card_max_width").addEventListener("change", (e) => this._updateConfig({ card_max_width: Number(e.target.value) }));
     if (isFixedSize) {
@@ -3543,7 +3577,6 @@ class RealtimePowerCardEditor extends HTMLElement {
       this.shadowRoot.getElementById("cfg_font_bar_pct").addEventListener("change", (e) => this._updateConfig({ font_bar_pct: Number(e.target.value) }));
     }
 
-    // Efekty i przezroczystość
     this.shadowRoot.getElementById("cfg_bar_style").addEventListener("change", (e) => this._updateConfig({ bar_style: e.target.value }));
     this.shadowRoot.getElementById("cfg_bar_3d_depth").addEventListener("change", (e) => this._updateConfig({ bar_3d_depth: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_bar_opacity").addEventListener("change", (e) => this._updateConfig({ bar_opacity: Number(e.target.value) }));
@@ -3563,7 +3596,6 @@ class RealtimePowerCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("cfg_bg_overlay").addEventListener("change", (e) => this._updateConfig({ bg_overlay_opacity: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_bg_image").addEventListener("change", (e) => this._updateConfig({ background_image: e.target.value }));
 
-    // Wymiary px
     this.shadowRoot.getElementById("cfg_bar_height").addEventListener("change", (e) => this._updateConfig({ bar_height: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_bar_gap").addEventListener("change", (e) => this._updateConfig({ bar_gap: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_bar_radius").addEventListener("change", (e) => this._updateConfig({ bar_radius: Number(e.target.value) }));
@@ -3696,7 +3728,7 @@ if (!window.customCards.some((c) => c.type === "realtime-power-card")) {
   window.customCards.push({
     type: "realtime-power-card",
     name: "Realtime Power Card (Energy Panel)",
-    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.1).",
+    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.2).",
     preview: true
   });
 }
