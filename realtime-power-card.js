@@ -1,12 +1,12 @@
 /**
  * Realtime Power Card for Home Assistant
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: HavenFlow
  * License: MIT
  * Repository: https://github.com/HavenFlow/realtime-power-card
  */
 
-const CARD_VERSION = "1.0.0";
+const CARD_VERSION = "1.0.1";
 
 console.info(
   `%c ⚡ REALTIME-POWER-CARD %c v${CARD_VERSION} `,
@@ -55,7 +55,6 @@ const TRANSLATIONS = {
       icons_only: "Show ONLY icons (hide device text names)",
       icons_inside_charts: "Render device icons inside Pie / Donut slices & Sankey nodes",
       show_percentage: "Show percentage share (%)",
-      // Header & History Chart
       header_section: "Header & Background History Chart",
       show_total_subtitle: "Show 'Total consumption: W/kW' in header",
       header_total_prefix: "Header total label text",
@@ -95,7 +94,6 @@ const TRANSLATIONS = {
       header_effect_glow: "Enable Neon Glow on header chart",
       header_effect_3d: "Enable 3D depth effect on header chart",
       header_effect_glass: "Enable Glass frost on header container",
-      // Main Chart Visual Effects
       effects_header: "Main Chart Visual Effects, Opacity & Background",
       bar_style: "Visual Style (Bars, Pie & Sankey)",
       style_flat: "Flat (Classic)",
@@ -187,7 +185,6 @@ const TRANSLATIONS = {
       icons_only: "Pokazuj TYLKO ikony urządzeń (ukryj nazwy tekstowe)",
       icons_inside_charts: "Wyświetlaj ikony wewnątrz wykresu kołowego i węzłów Sankey",
       show_percentage: "Pokazuj udział procentowy (%)",
-      // Sekcja Nagłówka i Wykresu Historii w tle
       header_section: "Nagłówek i Wykres Historii w Tle",
       show_total_subtitle: "Pokazuj 'Całkowite zużycie: W/kW' w nagłówku",
       header_total_prefix: "Tekst przed całkowitym zużyciem",
@@ -227,7 +224,6 @@ const TRANSLATIONS = {
       header_effect_glow: "Efekt poświaty (Neon Glow) na wykresie nagłówka",
       header_effect_3d: "Efekt głębi 3D na słupkach/segmentach nagłówka",
       header_effect_glass: "Efekt szkła (Glass) na panelu nagłówka",
-      // Sekcja Efektów Głównych
       effects_header: "Efekty wizualne wykresu głównego i Tło karty",
       bar_style: "Styl wizualny wykresu (Słupki, Kołowy, Sankey)",
       style_flat: "Płaski (Klasyczny)",
@@ -335,7 +331,7 @@ const DEFAULT_CONFIG = {
   header_history_enable: true,
   header_chart_opacity: 90,
   header_history_type: "combo",
-  header_history_mode: "today", // 'today' (od 00:00, uzupełniany z czasem) | 'rolling' (ostatnie X h)
+  header_history_mode: "today",
   header_history_hours: 24,
   header_history_buckets: 48,
   header_led_segments: 12,
@@ -483,7 +479,7 @@ function localize(hass, configLang, key) {
 }
 
 /* ============================================================================
- * UNIFIED DESKTOP-STYLE CHROMIUM COLOR PICKER POPOVER (IDENTICAL ON MOBILE & PC)
+ * UNIFIED DESKTOP-STYLE CHROMIUM COLOR PICKER POPOVER (v1.0.1 Z-Index Fix)
  * ============================================================================ */
 class DesktopColorPopover {
   static open(initialHex, onChange, hass, configLang) {
@@ -495,8 +491,9 @@ class DesktopColorPopover {
 
     const overlay = document.createElement("div");
     overlay.id = "rpc-desktop-color-overlay";
+    // FIX v1.0.1: Force maximum z-index to overlay HA config dialogs
     overlay.style.cssText = `
-      position: fixed; inset: 0; z-index: 999999;
+      position: fixed !important; inset: 0 !important; z-index: 2147483647 !important;
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(2px);
       display: flex; align-items: center; justify-content: center;
@@ -867,7 +864,7 @@ function getFallbackStorageEnergySensorPrefs(hass) {
 }
 
 // ==========================================
-// GŁÓWNA KLASA KARTY (v1.0.0)
+// GŁÓWNA KLASA KARTY (v1.0.1)
 // ==========================================
 class RealtimePowerCard extends HTMLElement {
   constructor() {
@@ -2675,7 +2672,7 @@ class RealtimePowerCard extends HTMLElement {
 }
 
 // ==========================================
-// EDYTOR GRAFICZNY (GUI v1.0.0)
+// EDYTOR GRAFICZNY (GUI v1.0.1)
 // ==========================================
 class RealtimePowerCardEditor extends HTMLElement {
   constructor() {
@@ -3699,7 +3696,7 @@ if (!window.customCards.some((c) => c.type === "realtime-power-card")) {
   window.customCards.push({
     type: "realtime-power-card",
     name: "Realtime Power Card (Energy Panel)",
-    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.0).",
+    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.1).",
     preview: true
   });
 }
