@@ -1,7 +1,18 @@
 /**
- * Realtime Power Card for Home Assistant (v6.2)
- * HACS Ready | True 3D Translucent Prism Bars | Regional Number Formatting | Top-Aligned Transparent Header
+ * Realtime Power Card for Home Assistant
+ * Version: 1.0.0
+ * Author: HavenFlow
+ * License: MIT
+ * Repository: https://github.com/HavenFlow/realtime-power-card
  */
+
+const CARD_VERSION = "1.0.0";
+
+console.info(
+  `%c ⚡ REALTIME-POWER-CARD %c v${CARD_VERSION} `,
+  "color: #00e5ff; background: #07192b; font-weight: 700; padding: 2px 6px; border-radius: 4px 0 0 4px; border: 1px solid #00e5ff;",
+  "color: #07192b; background: #00e5ff; font-weight: 700; padding: 2px 6px; border-radius: 0 4px 4px 0;"
+);
 
 const TRANSLATIONS = {
   en: {
@@ -66,6 +77,9 @@ const TRANSLATIONS = {
       hh_bar: "Vertical Bars",
       hh_combo: "Combo: Bars + Line with Nodes",
       hh_led: "Segmented LED Equalizer",
+      header_history_mode: "History time range mode",
+      hh_mode_rolling: "Rolling window (last X hours)",
+      hh_mode_today: "From start of day (from 00:00 – fills over time)",
       header_history_hours: "History time span (hours)",
       header_history_buckets: "Number of columns / time bars",
       header_led_segments: "Number of vertical LED segments",
@@ -86,7 +100,7 @@ const TRANSLATIONS = {
       bar_style: "Visual Style (Bars, Pie & Sankey)",
       style_flat: "Flat (Classic)",
       style_gradient: "Linear Gradient",
-      style_3d: "3D Translucent Prism / Cuboid",
+      style_3d: "3D Cohesive Solid Prism / Cuboid",
       style_glass: "Frosted Glass & Neon Glow",
       bar_3d_depth: "3D Prism Depth (px, for 3D style)",
       bar_shadow: "Enable drop shadow / floor glow on chart elements",
@@ -126,7 +140,11 @@ const TRANSLATIONS = {
       is_subdevice: "Sub-device (in brackets, excluded from 'Other' calculation)",
       parent_entity: "Parent Device (for Sankey tree & subtraction)",
       none: "None / Main device...",
-      unmapped_warn: "⚠️ No power sensor (stat_rate) found – type below to search and select!"
+      unmapped_warn: "⚠️ No power sensor (stat_rate) found – type below to search and select!",
+      cp_title: "Select Color",
+      cp_hue: "Hue",
+      cp_presets: "Quick Palette",
+      cp_apply: "Apply"
     }
   },
   pl: {
@@ -191,6 +209,9 @@ const TRANSLATIONS = {
       hh_bar: "Słupkowy klasyczny",
       hh_combo: "Combo: Słupki + Linia z punktami",
       hh_led: "Słupkowy segmentowy (Equalizer LED)",
+      header_history_mode: "Tryb zakresu czasu historii w nagłówku",
+      hh_mode_rolling: "Ostatnie X godzin (okno przesuwne)",
+      hh_mode_today: "Od początku dnia (od 00:00 – uzupełniany z upływem czasu)",
       header_history_hours: "Zakres czasu historii (godziny)",
       header_history_buckets: "Ilość kolumn / słupków na osi czasu",
       header_led_segments: "Ilość segmentów pionowych Equalizera LED",
@@ -211,7 +232,7 @@ const TRANSLATIONS = {
       bar_style: "Styl wizualny wykresu (Słupki, Kołowy, Sankey)",
       style_flat: "Płaski (Klasyczny)",
       style_gradient: "Gradient liniowy",
-      style_3d: "Szklany prostopadłościan 3D (Izometryczny)",
+      style_3d: "Spójna bryła 3D (Izometryczny prostopadłościan)",
       style_glass: "Szkło (Glass) + Poświata Neon",
       bar_3d_depth: "Głębia bryły 3D (px, dla stylu 3D)",
       bar_shadow: "Włącz cień / dolną poświatę (Glow) pod słupkami",
@@ -251,7 +272,11 @@ const TRANSLATIONS = {
       is_subdevice: "Urządzenie podrzędne (w nawiasie – nie odliczane od 'Pozostałe')",
       parent_entity: "Urządzenie nadrzędne / Rodzic (dla wykresu Sankey i odejmowania)",
       none: "Brak / Urządzenie główne...",
-      unmapped_warn: "⚠️ Brak sensora mocy – wyszukaj i wybierz właściwą encję poniżej!"
+      unmapped_warn: "⚠️ Brak sensora mocy – wyszukaj i wybierz właściwą encję poniżej!",
+      cp_title: "Wybierz kolor",
+      cp_hue: "Odcień (Hue)",
+      cp_presets: "Szybka paleta",
+      cp_apply: "Zastosuj"
     }
   }
 };
@@ -310,6 +335,7 @@ const DEFAULT_CONFIG = {
   header_history_enable: true,
   header_chart_opacity: 90,
   header_history_type: "combo",
+  header_history_mode: "today", // 'today' (od 00:00, uzupełniany z czasem) | 'rolling' (ostatnie X h)
   header_history_hours: 24,
   header_history_buckets: 48,
   header_led_segments: 12,
@@ -364,6 +390,34 @@ function hexToRgb(hex) {
   }
   const num = parseInt(clean.substring(0, 6), 16) || 0;
   return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+function rgbToHex(r, g, b) {
+  const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  return "#" + [clamp(r), clamp(g), clamp(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+function hsvToRgb(h, s, v) {
+  const f = (n, k = (n + h / 60) % 6) => v - v * s * Math.max(Math.min(k, 4 - k, 1), 0);
+  return { r: Math.round(f(5) * 255), g: Math.round(f(3) * 255), b: Math.round(f(1) * 255) };
+}
+
+function rgbToHsv(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  let h = 0;
+  const s = max === 0 ? 0 : d / max;
+  const v = max;
+  if (max !== min) {
+    switch (max) {
+      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+      case g: h = (b - r) / d + 2; break;
+      case b: h = (r - g) / d + 4; break;
+    }
+    h /= 6;
+  }
+  return { h: Math.round(h * 360), s, v };
 }
 
 function adjustColor(hex, amount) {
@@ -426,6 +480,198 @@ function localize(hass, configLang, key) {
   const dict = TRANSLATIONS[lang] || TRANSLATIONS.en;
   const res = key.split(".").reduce((o, i) => (o !== undefined && o !== null ? o[i] : null), dict);
   return res !== null && res !== undefined ? res : key;
+}
+
+/* ============================================================================
+ * UNIFIED DESKTOP-STYLE CHROMIUM COLOR PICKER POPOVER (IDENTICAL ON MOBILE & PC)
+ * ============================================================================ */
+class DesktopColorPopover {
+  static open(initialHex, onChange, hass, configLang) {
+    this.close();
+    const t = (k) => localize(hass, configLang, `editor.${k}`);
+    const startHex = (initialHex && /^#[0-9a-fA-F]{6}$/.test(initialHex.trim())) ? initialHex.trim() : "#0091ea";
+    const rgb = hexToRgb(startHex);
+    let hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+
+    const overlay = document.createElement("div");
+    overlay.id = "rpc-desktop-color-overlay";
+    overlay.style.cssText = `
+      position: fixed; inset: 0; z-index: 999999;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      display: flex; align-items: center; justify-content: center;
+      touch-action: none; user-select: none; -webkit-user-select: none;
+    `;
+
+    const dialog = document.createElement("div");
+    dialog.style.cssText = `
+      width: 285px; background: #1e2229; color: #f1f5f9;
+      border: 1px solid #3b4252; border-radius: 12px;
+      box-shadow: 0 22px 48px rgba(0,0,0,0.8);
+      padding: 14px; font-family: system-ui, -apple-system, Roboto, sans-serif;
+    `;
+
+    dialog.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <span style="font-size:13.5px; font-weight:700;">${t("cp_title")}</span>
+        <button type="button" id="rpc-cp-close" style="background:none; border:none; color:#94a3b8; font-size:18px; cursor:pointer; padding:0 4px;">✕</button>
+      </div>
+
+      <div id="rpc-sv-box" style="position:relative; width:100%; height:155px; border-radius:8px; overflow:hidden; cursor:crosshair; border:1px solid #334155; touch-action:none;">
+        <div id="rpc-sv-bg" style="position:absolute; inset:0; background:hsl(${hsv.h}, 100%, 50%);"></div>
+        <div style="position:absolute; inset:0; background:linear-gradient(to right, #fff, transparent);"></div>
+        <div style="position:absolute; inset:0; background:linear-gradient(to top, #000, transparent);"></div>
+        <div id="rpc-sv-cursor" style="position:absolute; width:14px; height:14px; border:2px solid #fff; border-radius:50%; box-shadow:0 0 4px rgba(0,0,0,0.9); transform:translate(-7px, -7px); pointer-events:none;"></div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-size:11px; color:#94a3b8; margin-bottom:4px;">${t("cp_hue")}</div>
+        <div id="rpc-hue-track" style="position:relative; width:100%; height:14px; border-radius:7px; cursor:pointer; touch-action:none; background:linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%); border:1px solid #334155;">
+          <div id="rpc-hue-thumb" style="position:absolute; top:-2px; width:16px; height:16px; border-radius:50%; background:#fff; border:2px solid #0f172a; box-shadow:0 1px 4px rgba(0,0,0,0.85); transform:translateX(-8px); pointer-events:none;"></div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; margin-top:12px;">
+        <div id="rpc-cp-preview" style="width:36px; height:36px; border-radius:6px; border:1px solid #475569; flex-shrink:0;"></div>
+        <input id="rpc-cp-hex" type="text" maxlength="7" style="flex:1; background:#0f172a; color:#f8fafc; border:1px solid #334155; border-radius:6px; padding:7px 9px; font-family:monospace; font-size:13.5px; text-transform:uppercase;" />
+      </div>
+
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:8px;">
+        <div style="display:flex; align-items:center; background:#0f172a; border:1px solid #334155; border-radius:5px; padding:4px 6px;">
+          <span style="font-size:10px; color:#64748b; margin-right:4px;">R</span>
+          <input id="rpc-cp-r" type="number" min="0" max="255" style="width:100%; background:none; border:none; color:#e2e8f0; font-size:12px; outline:none;" />
+        </div>
+        <div style="display:flex; align-items:center; background:#0f172a; border:1px solid #334155; border-radius:5px; padding:4px 6px;">
+          <span style="font-size:10px; color:#64748b; margin-right:4px;">G</span>
+          <input id="rpc-cp-g" type="number" min="0" max="255" style="width:100%; background:none; border:none; color:#e2e8f0; font-size:12px; outline:none;" />
+        </div>
+        <div style="display:flex; align-items:center; background:#0f172a; border:1px solid #334155; border-radius:5px; padding:4px 6px;">
+          <span style="font-size:10px; color:#64748b; margin-right:4px;">B</span>
+          <input id="rpc-cp-b" type="number" min="0" max="255" style="width:100%; background:none; border:none; color:#e2e8f0; font-size:12px; outline:none;" />
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <div style="font-size:11px; color:#94a3b8; margin-bottom:6px;">${t("cp_presets")}</div>
+        <div id="rpc-cp-swatches" style="display:grid; grid-template-columns:repeat(8, 1fr); gap:5px;"></div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+        <button type="button" id="rpc-cp-done" style="background:#03a9f4; color:#06121c; border:none; border-radius:6px; padding:7px 16px; font-weight:700; font-size:12.5px; cursor:pointer;">${t("cp_apply")}</button>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+    this._activeOverlay = overlay;
+
+    const svBox = dialog.querySelector("#rpc-sv-box");
+    const svBg = dialog.querySelector("#rpc-sv-bg");
+    const svCursor = dialog.querySelector("#rpc-sv-cursor");
+    const hueTrack = dialog.querySelector("#rpc-hue-track");
+    const hueThumb = dialog.querySelector("#rpc-hue-thumb");
+    const preview = dialog.querySelector("#rpc-cp-preview");
+    const hexInput = dialog.querySelector("#rpc-cp-hex");
+    const rInput = dialog.querySelector("#rpc-cp-r");
+    const gInput = dialog.querySelector("#rpc-cp-g");
+    const bInput = dialog.querySelector("#rpc-cp-b");
+    const swatchesEl = dialog.querySelector("#rpc-cp-swatches");
+
+    const presets = [...DEFAULT_PALETTE, "#ffffff"].slice(0, 16);
+    presets.forEach((col) => {
+      const sw = document.createElement("div");
+      sw.style.cssText = `height:22px; border-radius:4px; background:${col}; cursor:pointer; border:1px solid rgba(255,255,255,0.22);`;
+      sw.addEventListener("click", () => {
+        const c = hexToRgb(col);
+        hsv = rgbToHsv(c.r, c.g, c.b);
+        syncUI(true);
+      });
+      swatchesEl.appendChild(sw);
+    });
+
+    const syncUI = (emit = false) => {
+      const curRgb = hsvToRgb(hsv.h, hsv.s, hsv.v);
+      const curHex = rgbToHex(curRgb.r, curRgb.g, curRgb.b);
+      svBg.style.background = `hsl(${hsv.h}, 100%, 50%)`;
+      svCursor.style.left = `${hsv.s * 100}%`;
+      svCursor.style.top = `${(1 - hsv.v) * 100}%`;
+      hueThumb.style.left = `${(hsv.h / 360) * 100}%`;
+      preview.style.background = curHex;
+      if (document.activeElement !== hexInput) hexInput.value = curHex.toUpperCase();
+      if (document.activeElement !== rInput) rInput.value = curRgb.r;
+      if (document.activeElement !== gInput) gInput.value = curRgb.g;
+      if (document.activeElement !== bInput) bInput.value = curRgb.b;
+      if (emit && onChange) onChange(curHex);
+    };
+
+    const handleSv = (e) => {
+      const rect = svBox.getBoundingClientRect();
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const cy = e.touches ? e.touches[0].clientY : e.clientY;
+      hsv.s = Math.max(0, Math.min(1, (cx - rect.left) / rect.width));
+      hsv.v = Math.max(0, Math.min(1, 1 - (cy - rect.top) / rect.height));
+      syncUI(true);
+    };
+
+    const handleHue = (e) => {
+      const rect = hueTrack.getBoundingClientRect();
+      const cx = e.touches ? e.touches[0].clientX : e.clientX;
+      const ratio = Math.max(0, Math.min(1, (cx - rect.left) / rect.width));
+      hsv.h = Math.round(ratio * 360);
+      syncUI(true);
+    };
+
+    const bindDrag = (el, fn) => {
+      let dragging = false;
+      el.addEventListener("pointerdown", (ev) => {
+        dragging = true;
+        el.setPointerCapture(ev.pointerId);
+        fn(ev);
+      });
+      el.addEventListener("pointermove", (ev) => {
+        if (dragging) {
+          ev.preventDefault();
+          fn(ev);
+        }
+      });
+      el.addEventListener("pointerup", () => { dragging = false; });
+    };
+
+    bindDrag(svBox, handleSv);
+    bindDrag(hueTrack, handleHue);
+
+    hexInput.addEventListener("input", () => {
+      const v = hexInput.value.trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(v)) {
+        const c = hexToRgb(v);
+        hsv = rgbToHsv(c.r, c.g, c.b);
+        syncUI(true);
+      }
+    });
+
+    [rInput, gInput, bInput].forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const r = parseInt(rInput.value, 10) || 0;
+        const g = parseInt(gInput.value, 10) || 0;
+        const b = parseInt(bInput.value, 10) || 0;
+        hsv = rgbToHsv(r, g, b);
+        syncUI(true);
+      });
+    });
+
+    dialog.querySelector("#rpc-cp-close").addEventListener("click", () => this.close());
+    dialog.querySelector("#rpc-cp-done").addEventListener("click", () => this.close());
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) this.close(); });
+
+    syncUI(false);
+  }
+
+  static close() {
+    if (this._activeOverlay && this._activeOverlay.parentNode) {
+      this._activeOverlay.parentNode.removeChild(this._activeOverlay);
+    }
+    this._activeOverlay = null;
+  }
 }
 
 function guessDeviceIcon(name, stateObj) {
@@ -621,7 +867,7 @@ function getFallbackStorageEnergySensorPrefs(hass) {
 }
 
 // ==========================================
-// GŁÓWNA KLASA KARTY (v6.2)
+// GŁÓWNA KLASA KARTY (v1.0.0)
 // ==========================================
 class RealtimePowerCard extends HTMLElement {
   constructor() {
@@ -840,21 +1086,32 @@ class RealtimePowerCard extends HTMLElement {
     }
   }
 
+  // Obsługa historii w nagłówku: tryb 'today' (od 00:00 do 24:00, uzupełniany z upływem czasu) lub 'rolling' (ostatnie X h)
   async _maybeFetchHeaderHistory(force = false) {
     if (!this._hass || !this._config.header_history_enable) return;
     const totalEnt = this._getEffectiveTotalEntity();
     if (!totalEnt) return;
 
+    const mode = this._config.header_history_mode || "today";
     const hours = Math.max(1, Math.min(168, Number(this._config.header_history_hours) || 24));
     const buckets = Math.max(12, Math.min(120, Number(this._config.header_history_buckets) || 48));
-    const cacheKey = `${totalEnt}_${hours}_${buckets}`;
+    const cacheKey = `${totalEnt}_${mode}_${hours}_${buckets}`;
     const now = Date.now();
 
     if (!force && this._lastHistoryKey === cacheKey && now - this._lastHistoryFetchTs < 60000) return;
     this._lastHistoryFetchTs = now;
     this._lastHistoryKey = cacheKey;
 
-    const startTime = new Date(now - hours * 3600 * 1000);
+    const nowDate = new Date(now);
+    let startTime, windowEndMs;
+    if (mode === "today") {
+      startTime = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate(), 0, 0, 0, 0);
+      windowEndMs = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate(), 24, 0, 0, 0).getTime();
+    } else {
+      startTime = new Date(now - hours * 3600 * 1000);
+      windowEndMs = now;
+    }
+
     const endTime = new Date(now);
     const unit = (this._hass.states[totalEnt]?.attributes?.unit_of_measurement || "").toLowerCase();
     const mult = unit === "kw" ? 1000 : 1;
@@ -866,7 +1123,7 @@ class RealtimePowerCard extends HTMLElement {
       if (hist && hist[0] && hist[0].length > 0) {
         const rawPts = hist[0];
         const startMs = startTime.getTime();
-        const spanMs = Math.max(1, endTime.getTime() - startMs);
+        const spanMs = Math.max(1, windowEndMs - startMs);
         const bucketDuration = spanMs / buckets;
 
         const bucketSums = new Array(buckets).fill(0);
@@ -877,19 +1134,35 @@ class RealtimePowerCard extends HTMLElement {
           if (isNaN(val)) return;
           const ts = pt.lu ? pt.lu * 1000 : new Date(pt.last_changed || pt.last_updated).getTime();
           const bIdx = Math.min(buckets - 1, Math.max(0, Math.floor((ts - startMs) / bucketDuration)));
-          bucketSums[bIdx] += Math.max(0, val * mult);
-          bucketCounts[bIdx]++;
+          if (startMs + bIdx * bucketDuration <= now) {
+            bucketSums[bIdx] += Math.max(0, val * mult);
+            bucketCounts[bIdx]++;
+          }
         });
 
         const series = [];
-        let lastKnown = this._getPowerWatts(totalEnt);
-        for (let i = 0; i < buckets; i++) {
-          if (bucketCounts[i] > 0) {
-            lastKnown = bucketSums[i] / bucketCounts[i];
-          }
-          series.push(lastKnown);
+        let lastKnown = 0;
+        const firstValidPt = rawPts.find((p) => !isNaN(parseFloat(p.s !== undefined ? p.s : p.state)));
+        if (firstValidPt) {
+          lastKnown = Math.max(0, parseFloat(firstValidPt.s !== undefined ? firstValidPt.s : firstValidPt.state) * mult);
         }
-        series[buckets - 1] = this._getPowerWatts(totalEnt);
+
+        let currentBucketIdx = -1;
+        for (let i = 0; i < buckets; i++) {
+          const bStart = startMs + i * bucketDuration;
+          if (mode === "today" && bStart > now) {
+            series.push(null); // Przyszłe godziny (jeszcze nie nadeszły)
+          } else {
+            if (bucketCounts[i] > 0) {
+              lastKnown = bucketSums[i] / bucketCounts[i];
+            }
+            series.push(lastKnown);
+            currentBucketIdx = i;
+          }
+        }
+        if (currentBucketIdx >= 0) {
+          series[currentBucketIdx] = this._getPowerWatts(totalEnt);
+        }
         this._historySeries = series;
         this._updateCard();
       }
@@ -1197,6 +1470,9 @@ class RealtimePowerCard extends HTMLElement {
     const series = this._historySeries && this._historySeries.length > 1 ? this._historySeries : [];
     if (series.length === 0) return "";
 
+    const validValues = series.filter((v) => v !== null && v !== undefined && !isNaN(v));
+    if (validValues.length === 0) return "";
+
     const W = 600;
     const H = Math.max(60, Number(this._config.header_height) || 110);
     const padTop = 10;
@@ -1205,7 +1481,7 @@ class RealtimePowerCard extends HTMLElement {
     const plotW = W - padX * 2;
     const plotH = H - padTop - padBot;
 
-    const maxValData = Math.max(...series, 10);
+    const maxValData = Math.max(...validValues, 10);
     const maxScale =
       this._config.header_scale_mode === "fixed" && Number(this._config.header_max_scale_w) > 0
         ? Number(this._config.header_max_scale_w)
@@ -1256,15 +1532,16 @@ class RealtimePowerCard extends HTMLElement {
       const rects = [];
       for (let i = 0; i < n; i++) {
         const val = series[i];
-        const ratio = Math.max(0, Math.min(1, val / maxScale));
-        const activeSegs = Math.round(ratio * segs);
+        const isFuture = val === null || val === undefined;
+        const ratio = isFuture ? 0 : Math.max(0, Math.min(1, val / maxScale));
+        const activeSegs = isFuture ? 0 : Math.round(ratio * segs);
         const x = padX + i * colWidth + gapX / 2;
 
         for (let s = 0; s < segs; s++) {
           const segRatio = (s + 1) / segs;
           const y = padTop + plotH - (s + 1) * segStepY + (segStepY - segH) / 2;
-          const isLit = s < activeSegs;
-          const isPeak = s === activeSegs - 1 && activeSegs > 0;
+          const isLit = !isFuture && s < activeSegs;
+          const isPeak = !isFuture && s === activeSegs - 1 && activeSegs > 0;
 
           if (isLit) {
             const segColor = isPeak ? cLine : interpolateHexColor(cMin, cMax, segRatio);
@@ -1289,6 +1566,7 @@ class RealtimePowerCard extends HTMLElement {
 
       for (let i = 0; i < n; i++) {
         const val = series[i];
+        if (val === null || val === undefined) continue;
         const ratio = Math.max(0.02, Math.min(1, val / maxScale));
         const bH = ratio * plotH;
         const x = padX + i * colWidth + gapX / 2;
@@ -1304,33 +1582,37 @@ class RealtimePowerCard extends HTMLElement {
     }
 
     if (hType === "line" || hType === "combo") {
-      const pts = series.map((val, i) => {
+      const pts = [];
+      series.forEach((val, i) => {
+        if (val === null || val === undefined) return;
         const ratio = Math.max(0, Math.min(1, val / maxScale));
         const x = hType === "combo" ? padX + i * colWidth + colWidth / 2 : padX + i * stepX;
         const y = padTop + plotH - ratio * plotH;
-        return { x, y, ratio, val };
+        pts.push({ x, y, ratio, val });
       });
 
-      const linePath = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
-      const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padTop + plotH} L ${pts[0].x.toFixed(1)} ${padTop + plotH} Z`;
+      if (pts.length > 0) {
+        const linePath = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
+        const areaPath = `${linePath} L ${pts[pts.length - 1].x.toFixed(1)} ${padTop + plotH} L ${pts[0].x.toFixed(1)} ${padTop + plotH} Z`;
 
-      const dotStep = n > 36 ? 3 : 2;
-      const dots =
-        hType === "combo"
-          ? pts
-              .filter((_, idx) => idx % dotStep === 0 || idx === pts.length - 1)
-              .map(
-                (p) =>
-                  `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.5" fill="#ffffff" stroke="${cLine}" stroke-width="1.5" ${filterStr} />`
-              )
-              .join("")
-          : "";
+        const dotStep = n > 36 ? 3 : 2;
+        const dots =
+          hType === "combo"
+            ? pts
+                .filter((_, idx) => idx % dotStep === 0 || idx === pts.length - 1)
+                .map(
+                  (p) =>
+                    `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="2.5" fill="#ffffff" stroke="${cLine}" stroke-width="1.5" ${filterStr} />`
+                )
+                .join("")
+            : "";
 
-      bodySvg += `
-        <path d="${areaPath}" fill="url(#hh_area_grad)" opacity="${hType === "combo" ? "0.45" : "0.85"}" />
-        <path d="${linePath}" fill="none" stroke="${cLine}" stroke-width="${hType === "combo" ? "2" : "2.4"}" stroke-linecap="round" stroke-linejoin="round" ${filterStr} />
-        ${dots}
-      `;
+        bodySvg += `
+          <path d="${areaPath}" fill="url(#hh_area_grad)" opacity="${hType === "combo" ? "0.45" : "0.85"}" />
+          <path d="${linePath}" fill="none" stroke="${cLine}" stroke-width="${hType === "combo" ? "2" : "2.4"}" stroke-linecap="round" stroke-linejoin="round" ${filterStr} />
+          ${dots}
+        `;
+      }
     }
 
     return `
@@ -1402,16 +1684,17 @@ class RealtimePowerCard extends HTMLElement {
     };
   }
 
-  // Generowanie stylów dla słupków (w tym Izometryczny Szklany Prostopadłościan 3D)
+  // Generowanie stylów dla słupków (Spójna, jednolita bryła izometryczna 3D bez drucianych ramek)
   _getBarFillStyle(color, widthPct, depth3d) {
     const styleType = this._config.bar_style || "gradient";
     const opacity = (Number(this._config.bar_opacity ?? 92) / 100).toFixed(2);
     const hasShadow = this._config.bar_shadow !== false;
 
     const baseRgba = hexToRgba(color, opacity);
-    const lightHex = adjustColor(color, 65);
-    const veryLightHex = adjustColor(color, 105);
-    const darkHex = adjustColor(color, -45);
+    const lightHex = adjustColor(color, 55);
+    const veryLightHex = adjustColor(color, 95);
+    const darkHex = adjustColor(color, -42);
+    const veryDarkHex = adjustColor(color, -78);
     const lightRgba = hexToRgba(lightHex, opacity);
     const darkRgba = hexToRgba(darkHex, opacity);
 
@@ -1423,33 +1706,31 @@ class RealtimePowerCard extends HTMLElement {
     if (styleType === "gradient") {
       bgCss = `background: linear-gradient(90deg, ${darkRgba} 0%, ${baseRgba} 55%, ${lightRgba} 100%);`;
     } else if (styleType === "3d") {
-      // Szklany prostopadłościan 3D w poziomie (z refleksami, górną i prawą ścianką oraz dolną poświatą)
-      const frontTop = hexToRgba(lightHex, opacity * 0.88);
-      const frontMid = hexToRgba(color, opacity * 0.78);
-      const frontBot = hexToRgba(darkHex, opacity * 0.92);
+      // Spójna bryła 3D (górna ścianka najjaśniejsza, front z płynnym gradientem i ukośnym połyskiem, prawa ścianka w cieniu)
+      const frontTop = hexToRgba(lightHex, opacity);
+      const frontMid = hexToRgba(color, opacity);
+      const frontBot = hexToRgba(darkHex, opacity);
 
-      const topFaceStart = hexToRgba(lightHex, opacity * 0.72);
-      const topFaceEnd = hexToRgba(veryLightHex, opacity * 0.95);
+      const topFaceBack = hexToRgba(veryLightHex, opacity);
+      const topFaceFront = hexToRgba(lightHex, opacity);
 
-      const rightFaceTop = hexToRgba(veryLightHex, opacity * 0.96);
-      const rightFaceBot = hexToRgba(color, opacity * 0.85);
-      const edgeHighlight = hexToRgba(veryLightHex, 0.85);
+      const rightFaceTop = hexToRgba(darkHex, opacity);
+      const rightFaceBot = hexToRgba(veryDarkHex, opacity);
 
       bgCss = `
         background:
-          linear-gradient(125deg, rgba(255,255,255,0.42) 0%, rgba(255,255,255,0.12) 32%, rgba(255,255,255,0.0) 33%),
-          linear-gradient(180deg, ${frontTop} 0%, ${frontMid} 52%, ${frontBot} 100%);
+          linear-gradient(118deg, rgba(255,255,255,0.26) 0%, rgba(255,255,255,0.07) 36%, rgba(255,255,255,0.0) 36.8%),
+          linear-gradient(180deg, ${frontTop} 0%, ${frontMid} 46%, ${frontBot} 100%);
       `;
-      borderCss = `border: 1px solid ${edgeHighlight};`;
+      borderCss = `border: none;`;
       shadowCss = hasShadow
-        ? `box-shadow: -3px 7px 14px ${hexToRgba(color, 0.45)}, 0 4px 8px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,255,255,0.65);`
-        : `box-shadow: inset 0 1px 2px rgba(255,255,255,0.65);`;
+        ? `box-shadow: inset 0 1px 0 rgba(255,255,255,0.52), inset -1px 0 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.45), -2px 8px 16px -2px ${hexToRgba(color, 0.48)}, 0 4px 8px rgba(0,0,0,0.55);`
+        : `box-shadow: inset 0 1px 0 rgba(255,255,255,0.52), inset -1px 0 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.45);`;
 
       varsCss = `
         --d3d: ${depth3d}px;
-        --d3d-top-bg: linear-gradient(90deg, ${topFaceStart} 0%, ${topFaceEnd} 100%);
+        --d3d-top-bg: linear-gradient(180deg, ${topFaceBack} 0%, ${topFaceFront} 100%);
         --d3d-right-bg: linear-gradient(180deg, ${rightFaceTop} 0%, ${rightFaceBot} 100%);
-        --d3d-edge: ${edgeHighlight};
       `;
     } else if (styleType === "glass") {
       bgCss = `background: linear-gradient(90deg, ${hexToRgba(color, opacity * 0.45)} 0%, ${hexToRgba(lightHex, opacity * 0.78)} 100%); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);`;
@@ -2055,7 +2336,6 @@ class RealtimePowerCard extends HTMLElement {
     const hdrGlass = this._config.header_effect_glass !== false;
 
     const totalTextColor = this._config.header_total_color || "#ffffff";
-    // Przezroczystość nakładana na CAŁY kontener tekstu (wraz z cieniem i obrysem), dzięki czemu wykres pod spodem prześwituje!
     const totalTextLayerOp = (Math.min(100, Math.max(5, Number(this._config.header_total_opacity ?? 90))) / 100).toFixed(2);
     const totalTextFont = Number(this._config.header_total_font_size) || 18;
     const headerTopOffset = Number(this._config.header_top_offset ?? 4);
@@ -2230,38 +2510,37 @@ class RealtimePowerCard extends HTMLElement {
         flex-shrink: 0;
       }
 
-      /* Izometryczny Szklany Prostopadłościan 3D (Górna i Prawa ścianka) */
+      /* SPÓJNA BRYŁA IZOMETRYCZNA 3D (Górna i Prawa ścianka z mikro-zakładką 0.6px, bez drucianych ramek) */
       .bar-fill.prism-3d {
         border-radius: 0;
+        border: none;
       }
       .bar-fill.prism-3d::before {
         content: "";
         position: absolute;
-        top: calc(-1 * var(--d3d, 10px));
+        top: calc(-1 * var(--d3d, 10px) + 0.6px);
         left: 0;
         width: 100%;
         height: var(--d3d, 10px);
         background: var(--d3d-top-bg);
         transform-origin: bottom left;
         transform: skewX(-45deg);
-        border-top: 1px solid var(--d3d-edge);
-        border-left: 1px solid rgba(255, 255, 255, 0.4);
-        box-sizing: border-box;
+        border: none;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 1px 0 0 rgba(255, 255, 255, 0.3);
         pointer-events: none;
       }
       .bar-fill.prism-3d::after {
         content: "";
         position: absolute;
         top: 0;
-        right: calc(-1 * var(--d3d, 10px));
+        right: calc(-1 * var(--d3d, 10px) + 0.6px);
         width: var(--d3d, 10px);
         height: 100%;
         background: var(--d3d-right-bg);
         transform-origin: top left;
         transform: skewY(-45deg);
-        border-right: 1px solid var(--d3d-edge);
-        border-top: 1px solid var(--d3d-edge);
-        box-sizing: border-box;
+        border: none;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), inset -1px -1px 0 rgba(0, 0, 0, 0.45);
         pointer-events: none;
       }
 
@@ -2396,7 +2675,7 @@ class RealtimePowerCard extends HTMLElement {
 }
 
 // ==========================================
-// EDYTOR GRAFICZNY (GUI v6.2)
+// EDYTOR GRAFICZNY (GUI v1.0.0)
 // ==========================================
 class RealtimePowerCardEditor extends HTMLElement {
   constructor() {
@@ -2627,6 +2906,17 @@ class RealtimePowerCardEditor extends HTMLElement {
     }
   }
 
+  _bindColorButton(btnEl, txtInputEl, currentHex, onColorSelected) {
+    if (!btnEl) return;
+    btnEl.addEventListener("click", () => {
+      DesktopColorPopover.open(currentHex, (newHex) => {
+        btnEl.style.background = newHex;
+        if (txtInputEl) txtInputEl.value = newHex;
+        onColorSelected(newHex);
+      }, this._hass, this._config.language);
+    });
+  }
+
   _render() {
     if (!this.shadowRoot || !this._hass) return;
     const t = (k) => localize(this._hass, this._config.language, `editor.${k}`);
@@ -2634,6 +2924,7 @@ class RealtimePowerCardEditor extends HTMLElement {
     const isFixedSize = this._config.size_mode === "fixed";
     const isLed = this._config.header_history_type === "led";
     const isFixedScale = this._config.header_scale_mode === "fixed";
+    const isRollingHistory = this._config.header_history_mode === "rolling";
 
     this.shadowRoot.innerHTML = `
       <style>
@@ -2648,7 +2939,13 @@ class RealtimePowerCardEditor extends HTMLElement {
           background: var(--card-background-color, #1e1e1e); color: var(--primary-text-color, #fff);
           font-size: 0.9rem; width: 100%; box-sizing: border-box;
         }
-        input[type="color"] { width: 42px; height: 34px; border: none; background: none; cursor: pointer; padding: 0; flex-shrink: 0; }
+        /* Jednolity przycisk otwierający okno wyboru koloru w stylu przeglądarki PC (na telefonie i komputerze) */
+        .color-swatch-btn {
+          width: 42px; height: 34px; border-radius: 6px;
+          border: 1.5px solid rgba(255, 255, 255, 0.45);
+          cursor: pointer; padding: 0; flex-shrink: 0;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+        }
         .section-title {
           font-size: 0.96rem; font-weight: 600; margin-top: 14px; padding-bottom: 5px;
           border-bottom: 1px solid var(--divider-color, #444); color: var(--primary-color, #03a9f4);
@@ -2773,7 +3070,7 @@ class RealtimePowerCardEditor extends HTMLElement {
           <div class="row">
             <label>${t("header_total_color")}</label>
             <div style="display:flex; gap:6px; align-items:center;">
-              <input type="color" id="cfg_hdr_total_color" value="${this._config.header_total_color || "#ffffff"}">
+              <button type="button" class="color-swatch-btn" id="cfg_hdr_total_color" style="background:${this._config.header_total_color || "#ffffff"};"></button>
               <input type="text" id="cfg_hdr_total_color_txt" value="${this._config.header_total_color || "#ffffff"}">
             </div>
           </div>
@@ -2797,7 +3094,7 @@ class RealtimePowerCardEditor extends HTMLElement {
           <div class="row">
             <label>${t("header_text_outline_color")}</label>
             <div style="display:flex; gap:6px; align-items:center;">
-              <input type="color" id="cfg_hdr_out_col" value="${this._config.header_text_outline_color || "#000000"}">
+              <button type="button" class="color-swatch-btn" id="cfg_hdr_out_col" style="background:${this._config.header_text_outline_color || "#000000"};"></button>
               <input type="text" id="cfg_hdr_out_col_txt" value="${this._config.header_text_outline_color || "#000000"}">
             </div>
           </div>
@@ -2810,6 +3107,14 @@ class RealtimePowerCardEditor extends HTMLElement {
         <div class="row-inline">
           <label>${t("header_history_enable")}</label>
           <input type="checkbox" id="cfg_hh_enable" ${this._config.header_history_enable !== false ? "checked" : ""}>
+        </div>
+
+        <div class="row">
+          <label>${t("header_history_mode")}</label>
+          <select id="cfg_hh_mode">
+            <option value="today" ${(this._config.header_history_mode || "today") === "today" ? "selected" : ""}>${t("hh_mode_today")}</option>
+            <option value="rolling" ${this._config.header_history_mode === "rolling" ? "selected" : ""}>${t("hh_mode_rolling")}</option>
+          </select>
         </div>
 
         <div class="grid-2">
@@ -2835,7 +3140,7 @@ class RealtimePowerCardEditor extends HTMLElement {
           </div>
           <div class="row">
             <label>${t("header_history_hours")}</label>
-            <input type="number" id="cfg_hh_hours" min="1" max="168" value="${this._config.header_history_hours ?? 24}">
+            <input type="number" id="cfg_hh_hours" min="1" max="168" value="${this._config.header_history_hours ?? 24}" ${!isRollingHistory ? "disabled" : ""}>
           </div>
           <div class="row">
             <label>${t("header_history_buckets")}</label>
@@ -2873,15 +3178,15 @@ class RealtimePowerCardEditor extends HTMLElement {
         <div class="grid-3">
           <div class="row">
             <label>${t("header_color_max")}</label>
-            <input type="color" id="cfg_hh_cmax" value="${this._config.header_color_max || "#00e5ff"}" style="width:100%;">
+            <button type="button" class="color-swatch-btn" id="cfg_hh_cmax" style="width:100%; background:${this._config.header_color_max || "#00e5ff"};"></button>
           </div>
           <div class="row">
             <label>${t("header_color_min")}</label>
-            <input type="color" id="cfg_hh_cmin" value="${this._config.header_color_min || "#004d7a"}" style="width:100%;">
+            <button type="button" class="color-swatch-btn" id="cfg_hh_cmin" style="width:100%; background:${this._config.header_color_min || "#004d7a"};"></button>
           </div>
           <div class="row">
             <label>${t("header_line_color")}</label>
-            <input type="color" id="cfg_hh_cline" value="${this._config.header_line_color || "#80d8ff"}" style="width:100%;">
+            <button type="button" class="color-swatch-btn" id="cfg_hh_cline" style="width:100%; background:${this._config.header_line_color || "#80d8ff"};"></button>
           </div>
         </div>
 
@@ -2897,7 +3202,7 @@ class RealtimePowerCardEditor extends HTMLElement {
           <div class="row">
             <label>${t("header_bg_color")}</label>
             <div style="display:flex; gap:6px; align-items:center;">
-              <input type="color" id="cfg_hdr_bg_col" value="${this._config.header_bg_color || "#07192b"}">
+              <button type="button" class="color-swatch-btn" id="cfg_hdr_bg_col" style="background:${this._config.header_bg_color || "#07192b"};"></button>
               <input type="text" id="cfg_hdr_bg_col_txt" value="${this._config.header_bg_color || "#07192b"}">
             </div>
           </div>
@@ -2950,7 +3255,7 @@ class RealtimePowerCardEditor extends HTMLElement {
         <div class="row-inline">
           <label>${t("show_other")}</label>
           <div style="display:flex; align-items:center; gap:8px;">
-            <input type="color" id="cfg_other_color" value="${this._config.other_color || "#7f8c8d"}">
+            <button type="button" class="color-swatch-btn" id="cfg_other_color" style="background:${this._config.other_color || "#7f8c8d"};"></button>
             <input type="checkbox" id="cfg_show_other" ${this._config.show_other !== false ? "checked" : ""}>
           </div>
         </div>
@@ -3029,7 +3334,7 @@ class RealtimePowerCardEditor extends HTMLElement {
           <div class="row">
             <label>${t("card_bg_color")}</label>
             <div style="display:flex; gap:6px; align-items:center;">
-              <input type="color" id="cfg_card_bg_picker" value="${(this._config.card_bg_color || "#111111").startsWith("#") ? this._config.card_bg_color : "#111111"}">
+              <button type="button" class="color-swatch-btn" id="cfg_card_bg_picker" style="background:${(this._config.card_bg_color || "#111111").startsWith("#") ? this._config.card_bg_color : "#111111"};"></button>
               <input type="text" id="cfg_card_bg_color" value="${this._config.card_bg_color || "#111111"}">
             </div>
           </div>
@@ -3068,6 +3373,7 @@ class RealtimePowerCardEditor extends HTMLElement {
             .map((dev, idx) => {
               const isSub = Boolean(dev.is_child || dev.parent_entity);
               const isUnmapped = !dev.entity || !isPowerStateObj(this._hass.states[dev.entity]);
+              const devCol = dev.color || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length];
               return `
             <div class="dev-card ${isUnmapped ? "unmapped" : ""}" data-idx="${idx}">
               ${isUnmapped ? `<div class="warn-msg">${t("unmapped_warn")} (${dev.stat_id || ""})</div>` : ""}
@@ -3076,7 +3382,7 @@ class RealtimePowerCardEditor extends HTMLElement {
                   <button type="button" class="btn-ord" data-move-up="${idx}" ${idx === 0 ? "disabled" : ""}>▲</button>
                   <button type="button" class="btn-ord" data-move-down="${idx}" ${idx === devices.length - 1 ? "disabled" : ""}>▼</button>
                 </div>
-                <input type="color" class="dev-color" value="${dev.color || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length]}">
+                <button type="button" class="color-swatch-btn dev-color" style="background:${devCol};"></button>
                 <div class="entity-search-wrap dev-entity-search">
                   <input type="text" class="entity-search-input" placeholder="${t("search_entity_placeholder")}" autocomplete="off">
                   <div class="entity-search-dropdown"></div>
@@ -3138,16 +3444,31 @@ class RealtimePowerCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("cfg_show_subtitle").addEventListener("change", (e) => this._updateConfig({ show_total_subtitle: e.target.checked }));
     this.shadowRoot.getElementById("cfg_hdr_prefix").addEventListener("change", (e) => this._updateConfig({ header_total_prefix: e.target.value }));
     this.shadowRoot.getElementById("cfg_hdr_total_font").addEventListener("change", (e) => this._updateConfig({ header_total_font_size: Number(e.target.value) }));
-    this.shadowRoot.getElementById("cfg_hdr_total_color").addEventListener("change", (e) => this._updateConfig({ header_total_color: e.target.value }));
+
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_hdr_total_color"),
+      this.shadowRoot.getElementById("cfg_hdr_total_color_txt"),
+      this._config.header_total_color || "#ffffff",
+      (hex) => this._updateConfig({ header_total_color: hex }, true)
+    );
     this.shadowRoot.getElementById("cfg_hdr_total_color_txt").addEventListener("change", (e) => this._updateConfig({ header_total_color: e.target.value }));
+
     this.shadowRoot.getElementById("cfg_hdr_total_op").addEventListener("change", (e) => this._updateConfig({ header_total_opacity: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_hdr_txt_shadow").addEventListener("change", (e) => this._updateConfig({ header_text_shadow: e.target.checked }));
     this.shadowRoot.getElementById("cfg_hdr_txt_outline").addEventListener("change", (e) => this._updateConfig({ header_text_outline: e.target.checked }));
-    this.shadowRoot.getElementById("cfg_hdr_out_col").addEventListener("change", (e) => this._updateConfig({ header_text_outline_color: e.target.value }));
+
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_hdr_out_col"),
+      this.shadowRoot.getElementById("cfg_hdr_out_col_txt"),
+      this._config.header_text_outline_color || "#000000",
+      (hex) => this._updateConfig({ header_text_outline_color: hex }, true)
+    );
     this.shadowRoot.getElementById("cfg_hdr_out_col_txt").addEventListener("change", (e) => this._updateConfig({ header_text_outline_color: e.target.value }));
+
     this.shadowRoot.getElementById("cfg_hdr_out_w").addEventListener("change", (e) => this._updateConfig({ header_text_outline_width: Number(e.target.value) }));
 
     this.shadowRoot.getElementById("cfg_hh_enable").addEventListener("change", (e) => this._updateConfig({ header_history_enable: e.target.checked }));
+    this.shadowRoot.getElementById("cfg_hh_mode").addEventListener("change", (e) => this._updateConfig({ header_history_mode: e.target.value }));
     this.shadowRoot.getElementById("cfg_hh_type").addEventListener("change", (e) => this._updateConfig({ header_history_type: e.target.value }));
     this.shadowRoot.getElementById("cfg_hh_chart_op").addEventListener("change", (e) => this._updateConfig({ header_chart_opacity: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_hdr_height").addEventListener("change", (e) => this._updateConfig({ header_height: Number(e.target.value) }));
@@ -3160,13 +3481,37 @@ class RealtimePowerCardEditor extends HTMLElement {
     if (isFixedScale) {
       this.shadowRoot.getElementById("cfg_hh_max_w").addEventListener("change", (e) => this._updateConfig({ header_max_scale_w: Number(e.target.value) }));
     }
-    this.shadowRoot.getElementById("cfg_hh_cmax").addEventListener("change", (e) => this._updateConfig({ header_color_max: e.target.value }));
-    this.shadowRoot.getElementById("cfg_hh_cmin").addEventListener("change", (e) => this._updateConfig({ header_color_min: e.target.value }));
-    this.shadowRoot.getElementById("cfg_hh_cline").addEventListener("change", (e) => this._updateConfig({ header_line_color: e.target.value }));
+
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_hh_cmax"),
+      null,
+      this._config.header_color_max || "#00e5ff",
+      (hex) => this._updateConfig({ header_color_max: hex }, true)
+    );
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_hh_cmin"),
+      null,
+      this._config.header_color_min || "#004d7a",
+      (hex) => this._updateConfig({ header_color_min: hex }, true)
+    );
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_hh_cline"),
+      null,
+      this._config.header_line_color || "#80d8ff",
+      (hex) => this._updateConfig({ header_line_color: hex }, true)
+    );
+
     this.shadowRoot.getElementById("cfg_hh_opmax").addEventListener("change", (e) => this._updateConfig({ header_opacity_max: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_hh_opmin").addEventListener("change", (e) => this._updateConfig({ header_opacity_min: Number(e.target.value) }));
-    this.shadowRoot.getElementById("cfg_hdr_bg_col").addEventListener("change", (e) => this._updateConfig({ header_bg_color: e.target.value }));
+
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_hdr_bg_col"),
+      this.shadowRoot.getElementById("cfg_hdr_bg_col_txt"),
+      this._config.header_bg_color || "#07192b",
+      (hex) => this._updateConfig({ header_bg_color: hex }, true)
+    );
     this.shadowRoot.getElementById("cfg_hdr_bg_col_txt").addEventListener("change", (e) => this._updateConfig({ header_bg_color: e.target.value }));
+
     this.shadowRoot.getElementById("cfg_hdr_bg_op").addEventListener("change", (e) => this._updateConfig({ header_bg_opacity: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_hh_glow").addEventListener("change", (e) => this._updateConfig({ header_effect_glow: e.target.checked }));
     this.shadowRoot.getElementById("cfg_hh_3d").addEventListener("change", (e) => this._updateConfig({ header_effect_3d: e.target.checked }));
@@ -3180,7 +3525,14 @@ class RealtimePowerCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("cfg_hierarchy").addEventListener("change", (e) => this._updateConfig({ hierarchy_mode: e.target.value }));
     this.shadowRoot.getElementById("cfg_auto_energy").addEventListener("change", (e) => this._updateConfig({ auto_from_energy_panel: e.target.checked }));
     this.shadowRoot.getElementById("cfg_show_other").addEventListener("change", (e) => this._updateConfig({ show_other: e.target.checked }));
-    this.shadowRoot.getElementById("cfg_other_color").addEventListener("change", (e) => this._updateConfig({ other_color: e.target.value }));
+
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_other_color"),
+      null,
+      this._config.other_color || "#7f8c8d",
+      (hex) => this._updateConfig({ other_color: hex }, true)
+    );
+
     this.shadowRoot.getElementById("cfg_show_icons").addEventListener("change", (e) => this._updateConfig({ show_icons: e.target.checked }));
     this.shadowRoot.getElementById("cfg_icons_only").addEventListener("change", (e) => this._updateConfig({ icons_only: e.target.checked }));
     this.shadowRoot.getElementById("cfg_icons_inside").addEventListener("change", (e) => this._updateConfig({ icons_inside_charts: e.target.checked }));
@@ -3202,8 +3554,15 @@ class RealtimePowerCardEditor extends HTMLElement {
     this.shadowRoot.getElementById("cfg_card_bg_opacity").addEventListener("change", (e) => this._updateConfig({ card_bg_opacity: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_bar_shadow").addEventListener("change", (e) => this._updateConfig({ bar_shadow: e.target.checked }));
     this.shadowRoot.getElementById("cfg_card_glass").addEventListener("change", (e) => this._updateConfig({ card_glass: e.target.checked }));
-    this.shadowRoot.getElementById("cfg_card_bg_picker").addEventListener("change", (e) => this._updateConfig({ card_bg_color: e.target.value }));
+
+    this._bindColorButton(
+      this.shadowRoot.getElementById("cfg_card_bg_picker"),
+      this.shadowRoot.getElementById("cfg_card_bg_color"),
+      (this._config.card_bg_color || "#111111").startsWith("#") ? this._config.card_bg_color : "#111111",
+      (hex) => this._updateConfig({ card_bg_color: hex }, true)
+    );
     this.shadowRoot.getElementById("cfg_card_bg_color").addEventListener("change", (e) => this._updateConfig({ card_bg_color: e.target.value }));
+
     this.shadowRoot.getElementById("cfg_bg_overlay").addEventListener("change", (e) => this._updateConfig({ bg_overlay_opacity: Number(e.target.value) }));
     this.shadowRoot.getElementById("cfg_bg_image").addEventListener("change", (e) => this._updateConfig({ background_image: e.target.value }));
 
@@ -3264,7 +3623,14 @@ class RealtimePowerCardEditor extends HTMLElement {
         });
       }
 
-      card.querySelector(".dev-color").addEventListener("change", (e) => updateDev({ color: e.target.value }));
+      const devColBtn = card.querySelector(".dev-color");
+      this._bindColorButton(
+        devColBtn,
+        null,
+        devices[idx].color || DEFAULT_PALETTE[idx % DEFAULT_PALETTE.length],
+        (hex) => updateDev({ color: hex }, true)
+      );
+
       card.querySelector(".dev-name").addEventListener("change", (e) => updateDev({ name: e.target.value }));
 
       const iconInput = card.querySelector(".dev-icon-input");
@@ -3321,13 +3687,19 @@ class RealtimePowerCardEditor extends HTMLElement {
   }
 }
 
-customElements.define("realtime-power-card", RealtimePowerCard);
-customElements.define("realtime-power-card-editor", RealtimePowerCardEditor);
+if (!customElements.get("realtime-power-card")) {
+  customElements.define("realtime-power-card", RealtimePowerCard);
+}
+if (!customElements.get("realtime-power-card-editor")) {
+  customElements.define("realtime-power-card-editor", RealtimePowerCardEditor);
+}
 
 window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "realtime-power-card",
-  name: "Realtime Power Card (Energy Panel)",
-  description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Prism Bar, Pie, Donut & Sankey diagrams.",
-  preview: true
-});
+if (!window.customCards.some((c) => c.type === "realtime-power-card")) {
+  window.customCards.push({
+    type: "realtime-power-card",
+    name: "Realtime Power Card (Energy Panel)",
+    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.0).",
+    preview: true
+  });
+}
