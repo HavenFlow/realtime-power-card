@@ -1,17 +1,23 @@
-# ⚡ Realtime Power Card for Home Assistant (`v1.0.2`)
+# ⚡ Realtime Power Card for Home Assistant (`v1.0.3`)
 
 [![HACS Validation](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-1.0.2-00e5ff.svg)](https://github.com/HavenFlow/realtime-power-card/releases)
+[![Version](https://img.shields.io/badge/version-1.0.3-00e5ff.svg)](https://github.com/HavenFlow/realtime-power-card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 An advanced Lovelace card for **Home Assistant** that visualizes real-time power consumption (**W / kW**) and daily energy usage (**kWh**) directly synced with your **Energy Dashboard**.
 
+<p align="center">
+  <img src="preview.png" alt="Realtime Power Card Example Preview" width="480">
+</p>
+
+> 💡 **First Step / Prerequisite:** To unlock the full potential of this card (automatic device discovery, automatic pairing of `kWh` energy sensors with `W`/`kW` power sensors, daily `kWh` summaries, and parent-child circuit hierarchy), it is highly recommended to **configure your Home Assistant Energy Dashboard first** (*Settings -> Dashboards -> Energy*) if you haven't done so already.
+
 ---
 
-## ✨ Features (`v1.0.2`)
+## ✨ Features (`v1.0.3`)
 
 * **🔄 Auto-Sync with Energy Dashboard:** Automatically fetches devices configured in the HA Energy Dashboard, pairs energy entities (`kWh`) with their corresponding power sensors (`W`/`kW`), and maps parent-child hierarchy (`included_in_stat`).
-* **🧊 Cohesive 3D Solid Prism Bars:** Bars are rendered as seamless, solid 3D cuboids featuring realistic face shading, a 0.6px micro-overlap to eliminate subpixel seams, diagonal glass reflections, and neon floor glow.
+* **🧊 High-Gloss 3D Acrylic Prism Bars:** Bars are rendered as seamless, glossy 3D cuboids featuring sharp diagonal glass reflections, bright inner specular ridges, realistic face shading, and neon floor reflection glow.
 * **📊 Header History Chart:**
   * **Time Range Modes:**
     * **`today` (Start of Day 00:00 - 24:00):** The chart starts at midnight and fills dynamically as the day progresses. Future hours remain unlit.
@@ -19,7 +25,7 @@ An advanced Lovelace card for **Home Assistant** that visualizes real-time power
   * **4 Visual Styles:** *Segmented LED Equalizer*, *Combo (Bars + Line & Nodes)*, *Smooth Area Line*, and *Classic Columns*.
 * **📈 5 Main Chart Types:**
   1. **Horizontal Bar Chart (`bar`)** – features smooth sorting animations.
-  2. **Pie Chart (`pie`)** – displays device icons inside the slices.
+  2. **Pie Chart (`pie`)** – true circular rendering with glossy sheen and device icons inside slices.
   3. **Donut Chart (`donut`)** – shows the total power and daily kWh in the center.
   4. **Horizontal Sankey Flow (`sankey_h`)** – multi-level tree: *Grid -> Main Circuits -> Sub-devices*.
   5. **Vertical Sankey Flow (`sankey_v`)**.
@@ -29,6 +35,9 @@ An advanced Lovelace card for **Home Assistant** that visualizes real-time power
 ---
 
 ## 📦 Installation
+
+### Step 0: Configure Home Assistant Energy Dashboard (Recommended)
+Before adding the card, make sure your grid consumption and individual devices are added to the built-in **Home Assistant Energy Dashboard** (*Settings -> Dashboards -> Energy*). While you can still add devices manually in the card editor, configuring the Energy Dashboard first allows the card to automatically configure all entities, icons, daily `kWh` counters, and circuit hierarchies out of the box.
 
 ### HACS (Recommended)
 1. Open **HACS** in Home Assistant -> **Frontend**.
@@ -40,7 +49,7 @@ An advanced Lovelace card for **Home Assistant** that visualizes real-time power
 1. Download `realtime-power-card.js` from the [Releases](https://github.com/HavenFlow/realtime-power-card/releases) page.
 2. Copy it into your `/config/www/` directory.
 3. Go to **Settings -> Dashboards -> Resources** and add:
-   * URL: `/local/realtime-power-card.js?v=1.0.2`
+   * URL: `/local/realtime-power-card.js?v=1.0.3`
    * Type: `JavaScript Module`
 
 ---
@@ -71,5 +80,5 @@ This card includes a 100% complete visual editor. Just add the card to your dash
 | `header_history_enable` | `boolean` | `true` | Enables the background history chart in the header |
 | `header_history_mode` | `string` | `'today'` | `'today'` (from 00:00, live fill) or `'rolling'` (last X hours) |
 | `header_history_type` | `string` | `'combo'` | `'led'`, `'combo'`, `'line'`, `'bar'` |
-| `bar_style` | `string` | `'3d'` | `'3d'` (solid 3D prism), `'gradient'`, `'glass'`, `'flat'` |
+| `bar_style` | `string` | `'3d'` | `'3d'` (glossy 3D prism), `'gradient'`, `'glass'`, `'flat'` |
 | `bar_3d_depth` | `number` | `10` | 3D depth in pixels for the prism effect (`4-24`) |

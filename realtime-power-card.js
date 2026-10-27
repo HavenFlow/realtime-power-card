@@ -1,12 +1,12 @@
 /**
  * Realtime Power Card for Home Assistant
- * Version: 1.0.2
+ * Version: 1.0.3
  * Author: HavenFlow
  * License: MIT
  * Repository: https://github.com/HavenFlow/realtime-power-card
  */
 
-const CARD_VERSION = "1.0.2";
+const CARD_VERSION = "1.0.3";
 
 console.info(
   `%c ⚡ REALTIME-POWER-CARD %c v${CARD_VERSION} `,
@@ -913,7 +913,7 @@ function getFallbackStorageEnergySensorPrefs(hass) {
 }
 
 // ==========================================
-// MAIN CARD CLASS (v1.0.2)
+// MAIN CARD CLASS (v1.0.3)
 // ==========================================
 class RealtimePowerCard extends HTMLElement {
   constructor() {
@@ -1748,30 +1748,51 @@ class RealtimePowerCard extends HTMLElement {
     if (styleType === "gradient") {
       bgCss = `background: linear-gradient(90deg, ${darkRgba} 0%, ${baseRgba} 55%, ${lightRgba} 100%);`;
     } else if (styleType === "3d") {
-      const frontTop = hexToRgba(lightHex, opacity);
+      // High-Gloss Polished Acrylic 3D Prism (sharp diagonal glass reflection, bright specular ridge, glossy floor reflection)
+      const frontTop = hexToRgba(adjustColor(color, 72), opacity);
+      const frontUpper = hexToRgba(adjustColor(color, 25), opacity);
       const frontMid = hexToRgba(color, opacity);
-      const frontBot = hexToRgba(darkHex, opacity);
+      const frontBot = hexToRgba(adjustColor(color, -48), opacity);
 
-      const topFaceBack = hexToRgba(veryLightHex, opacity);
-      const topFaceFront = hexToRgba(lightHex, opacity);
+      const topFaceBack = hexToRgba(adjustColor(color, 40), opacity);
+      const topFaceFront = hexToRgba(adjustColor(color, 95), opacity);
 
-      const rightFaceTop = hexToRgba(darkHex, opacity);
-      const rightFaceBot = hexToRgba(veryDarkHex, opacity);
+      const rightFaceTop = hexToRgba(adjustColor(color, -18), opacity);
+      const rightFaceBot = hexToRgba(adjustColor(color, -75), opacity);
+
+      const specularRidge = hexToRgba(adjustColor(color, 135), 0.95);
 
       bgCss = `
         background:
-          linear-gradient(118deg, rgba(255,255,255,0.26) 0%, rgba(255,255,255,0.07) 36%, rgba(255,255,255,0.0) 36.8%),
-          linear-gradient(180deg, ${frontTop} 0%, ${frontMid} 46%, ${frontBot} 100%);
+          linear-gradient(180deg, rgba(255,255,255,0.68) 0%, rgba(255,255,255,0.18) 8%, rgba(255,255,255,0.0) 16%),
+          linear-gradient(128deg, rgba(255,255,255,0.44) 0%, rgba(255,255,255,0.20) 34%, rgba(255,255,255,0.04) 52%, rgba(255,255,255,0.0) 52.6%),
+          linear-gradient(90deg, rgba(255,255,255,0.22) 0px, rgba(255,255,255,0.0) 6px),
+          linear-gradient(180deg, ${frontTop} 0%, ${frontUpper} 38%, ${frontMid} 54%, ${frontBot} 100%);
       `;
       borderCss = `border: none;`;
       shadowCss = hasShadow
-        ? `box-shadow: inset 0 1px 0 rgba(255,255,255,0.52), inset -1px 0 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.45), -2px 8px 16px -2px ${hexToRgba(color, 0.48)}, 0 4px 8px rgba(0,0,0,0.55);`
-        : `box-shadow: inset 0 1px 0 rgba(255,255,255,0.52), inset -1px 0 0 rgba(255,255,255,0.28), inset 0 -1px 0 rgba(0,0,0,0.45);`;
+        ? `box-shadow:
+            inset 0 1.5px 0 rgba(255,255,255,0.92),
+            inset -1.5px 0 0 rgba(255,255,255,0.65),
+            inset 1px 0 0 rgba(255,255,255,0.45),
+            inset 0 -2px 4px rgba(0,0,0,0.55),
+            0 10px 18px -3px ${hexToRgba(color, 0.55)},
+            0 4px 8px rgba(0,0,0,0.65);`
+        : `box-shadow:
+            inset 0 1.5px 0 rgba(255,255,255,0.92),
+            inset -1.5px 0 0 rgba(255,255,255,0.65),
+            inset 1px 0 0 rgba(255,255,255,0.45),
+            inset 0 -2px 4px rgba(0,0,0,0.55);`;
 
       varsCss = `
         --d3d: ${depth3d}px;
-        --d3d-top-bg: linear-gradient(180deg, ${topFaceBack} 0%, ${topFaceFront} 100%);
-        --d3d-right-bg: linear-gradient(180deg, ${rightFaceTop} 0%, ${rightFaceBot} 100%);
+        --d3d-ridge: ${specularRidge};
+        --d3d-top-bg:
+          linear-gradient(128deg, rgba(255,255,255,0.50) 0%, rgba(255,255,255,0.14) 48%, rgba(255,255,255,0.0) 48.6%),
+          linear-gradient(180deg, ${topFaceBack} 0%, ${topFaceFront} 100%);
+        --d3d-right-bg:
+          linear-gradient(145deg, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0.08) 42%, rgba(0,0,0,0.25) 42.6%, rgba(0,0,0,0.45) 100%),
+          linear-gradient(180deg, ${rightFaceTop} 0%, ${rightFaceBot} 100%);
       `;
     } else if (styleType === "glass") {
       bgCss = `background: linear-gradient(90deg, ${hexToRgba(color, opacity * 0.45)} 0%, ${hexToRgba(lightHex, opacity * 0.78)} 100%); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);`;
@@ -1989,11 +2010,17 @@ class RealtimePowerCard extends HTMLElement {
       cumulativePct += pct;
 
       const strokePaint = styleType === "flat" ? item.color : `url(#svg_grad_${idx})`;
-      const strokeW = isDonut ? "8" : "31.83";
+      const sliceRadius = isDonut ? 15.91549430918954 : 9.5;
+      const circumference = 2 * Math.PI * sliceRadius;
+      const dashLen = (pct / 100) * circumference;
+      const gapLen = Math.max(0, circumference - dashLen + 0.02);
+      const sliceDashArray = `${dashLen.toFixed(3)} ${gapLen.toFixed(3)}`;
+      const sliceDashOffset = (((100 - cumulativePct + 25) / 100) * circumference).toFixed(3);
+      const strokeW = isDonut ? "7.2" : "19";
 
-      slices.push(`<circle r="${radius}" cx="21" cy="21" fill="transparent"
+      slices.push(`<circle r="${sliceRadius}" cx="21" cy="21" fill="transparent"
         stroke="${strokePaint}" stroke-opacity="${opacity}" stroke-width="${strokeW}"
-        stroke-dasharray="${dashArray}" stroke-dashoffset="${dashOffset}"
+        stroke-dasharray="${sliceDashArray}" stroke-dashoffset="${sliceDashOffset}"
         class="pie-slice" data-entity="${item.entity}">
         <title>${item.name}: ${item.formattedValue}</title>
       </circle>`);
@@ -2023,8 +2050,17 @@ class RealtimePowerCard extends HTMLElement {
       <div class="pie-layout">
         <div class="pie-svg-wrap" style="width:${dims.pieSize}px; height:${dims.pieSize}px;">
           <svg viewBox="0 0 42 42" class="pie-svg">
-            <defs>${this._buildSvgVisualFilters(sliceItems)}</defs>
+            <defs>
+              ${this._buildSvgVisualFilters(sliceItems)}
+              <linearGradient id="pie_gloss_sheen" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.38" />
+                <stop offset="46%" stop-color="#ffffff" stop-opacity="0.10" />
+                <stop offset="46.5%" stop-color="#ffffff" stop-opacity="0.0" />
+                <stop offset="100%" stop-color="#000000" stop-opacity="0.18" />
+              </linearGradient>
+            </defs>
             <g ${filterAttr}>${slices.join("")}</g>
+            ${styleType === "3d" || styleType === "glass" ? `<circle cx="21" cy="21" r="${isDonut ? "15.915" : "9.5"}" fill="transparent" stroke="url(#pie_gloss_sheen)" stroke-width="${isDonut ? "7.2" : "19"}" pointer-events="none" />` : ""}
             ${
               isDonut
                 ? `<g class="donut-center">
@@ -2549,7 +2585,7 @@ class RealtimePowerCard extends HTMLElement {
         flex-shrink: 0;
       }
 
-      /* COHESIVE 3D ISOMETRIC PRISM (Top & Right faces with 0.6px micro-overlap, zero wireframe gaps) */
+      /* HIGH-GLOSS 3D ACRYLIC PRISM (Crisp inner specular ridge + diagonal glass sheen + 0.6px overlap) */
       .bar-fill.prism-3d {
         border-radius: 0;
         border: none;
@@ -2565,7 +2601,10 @@ class RealtimePowerCard extends HTMLElement {
         transform-origin: bottom left;
         transform: skewX(-45deg);
         border: none;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 1px 0 0 rgba(255, 255, 255, 0.3);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.78),
+          inset 1.5px 0 0 rgba(255, 255, 255, 0.65),
+          inset -1px -1px 0 rgba(255, 255, 255, 0.88);
         pointer-events: none;
       }
       .bar-fill.prism-3d::after {
@@ -2579,7 +2618,10 @@ class RealtimePowerCard extends HTMLElement {
         transform-origin: top left;
         transform: skewY(-45deg);
         border: none;
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), inset -1px -1px 0 rgba(0, 0, 0, 0.45);
+        box-shadow:
+          inset 1.5px 0 0 rgba(255, 255, 255, 0.75),
+          inset 0 1.5px 0 rgba(255, 255, 255, 0.72),
+          inset -1px -1px 2px rgba(0, 0, 0, 0.6);
         pointer-events: none;
       }
 
@@ -2714,7 +2756,7 @@ class RealtimePowerCard extends HTMLElement {
 }
 
 // ==========================================
-// VISUAL GUI EDITOR (v1.0.2)
+// VISUAL GUI EDITOR (v1.0.3)
 // ==========================================
 class RealtimePowerCardEditor extends HTMLElement {
   constructor() {
@@ -3728,7 +3770,7 @@ if (!window.customCards.some((c) => c.type === "realtime-power-card")) {
   window.customCards.push({
     type: "realtime-power-card",
     name: "Realtime Power Card (Energy Panel)",
-    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.2).",
+    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.3).",
     preview: true
   });
 }

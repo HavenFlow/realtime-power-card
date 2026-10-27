@@ -1,6 +1,5 @@
 {
   "name": "Realtime Power Card",
   "render_readme": true,
-  "filename": "realtime-power-card.js",
-  "content_in_root": true
+  "filename": "realtime-power-card.js"
 }
