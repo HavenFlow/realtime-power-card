@@ -1,7 +1,7 @@
-# ⚡ Realtime Power Card for Home Assistant (`v1.0.3`)
+# ⚡ Realtime Power Card for Home Assistant (`v1.0.4`)
 
 [![HACS Validation](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
-[![Version](https://img.shields.io/badge/version-1.0.3-00e5ff.svg)](https://github.com/HavenFlow/realtime-power-card/releases)
+[![Version](https://img.shields.io/badge/version-1.0.4-00e5ff.svg)](https://github.com/HavenFlow/realtime-power-card/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 An advanced Lovelace card for **Home Assistant** that visualizes real-time power consumption (**W / kW**) and daily energy usage (**kWh**) directly synced with your **Energy Dashboard**.
@@ -14,7 +14,7 @@ An advanced Lovelace card for **Home Assistant** that visualizes real-time power
 
 ---
 
-## ✨ Features (`v1.0.3`)
+## ✨ Features (`v1.0.4`)
 
 * **🔄 Auto-Sync with Energy Dashboard:** Automatically fetches devices configured in the HA Energy Dashboard, pairs energy entities (`kWh`) with their corresponding power sensors (`W`/`kW`), and maps parent-child hierarchy (`included_in_stat`).
 * **🧊 High-Gloss 3D Acrylic Prism Bars:** Bars are rendered as seamless, glossy 3D cuboids featuring sharp diagonal glass reflections, bright inner specular ridges, realistic face shading, and neon floor reflection glow.
@@ -49,7 +49,7 @@ Before adding the card, make sure your grid consumption and individual devices a
 1. Download `realtime-power-card.js` from the [Releases](https://github.com/HavenFlow/realtime-power-card/releases) page.
 2. Copy it into your `/config/www/` directory.
 3. Go to **Settings -> Dashboards -> Resources** and add:
-   * URL: `/local/realtime-power-card.js?v=1.0.3`
+    * URL: `/local/realtime-power-card.js?v=1.0.4`
    * Type: `JavaScript Module`
 
 ---

@@ -1,12 +1,12 @@
 /**
  * Realtime Power Card for Home Assistant
- * Version: 1.0.3
+ * Version: 1.0.4
  * Author: HavenFlow
  * License: MIT
  * Repository: https://github.com/HavenFlow/realtime-power-card
  */
 
-const CARD_VERSION = "1.0.3";
+const CARD_VERSION = "1.0.4";
 
 console.info(
   `%c ⚡ REALTIME-POWER-CARD %c v${CARD_VERSION} `,
@@ -913,7 +913,7 @@ function getFallbackStorageEnergySensorPrefs(hass) {
 }
 
 // ==========================================
-// MAIN CARD CLASS (v1.0.3)
+// MAIN CARD CLASS (v1.0.4)
 // ==========================================
 class RealtimePowerCard extends HTMLElement {
   constructor() {
@@ -1413,20 +1413,25 @@ class RealtimePowerCard extends HTMLElement {
       }
     }
 
-    let totalDailyKwh = hasAnyKwh ? trackedRootKwh : null;
-    if (this._energyMapping && Array.isArray(this._energyMapping.gridEnergyStats) && this._energyMapping.gridEnergyStats.length > 0) {
-      let gridSum = 0;
-      let foundGrid = false;
-      this._energyMapping.gridEnergyStats.forEach((gs) => {
-        if (this._dailyKwhMap[gs] !== undefined) {
-          gridSum += this._dailyKwhMap[gs];
-          foundGrid = true;
+    const totalEntityDevice = totalEntity && this._energyMapping?.statToDevice?.[totalEntity];
+    const totalEntityEnergyStats = totalEntityDevice
+      ? this._energyMapping.deviceToEnergyEntities?.[totalEntityDevice] || []
+      : [];
+    const sumDailyEnergyStats = (statIds) => {
+      let sum = 0;
+      let found = false;
+      statIds.forEach((statId) => {
+        if (this._dailyKwhMap[statId] !== undefined) {
+          sum += this._dailyKwhMap[statId];
+          found = true;
         }
       });
-      if (foundGrid && gridSum > trackedRootKwh) {
-        totalDailyKwh = gridSum;
-      }
-    }
+      return found ? sum : null;
+    };
+
+    const gridKwh = sumDailyEnergyStats(this._energyMapping?.gridEnergyStats || []);
+    const totalEntityKwh = sumDailyEnergyStats(totalEntityEnergyStats);
+    const totalDailyKwh = gridKwh ?? totalEntityKwh ?? (hasAnyKwh ? trackedRootKwh : null);
 
     const otherDailyKwh = totalDailyKwh !== null && totalDailyKwh > trackedRootKwh ? Math.max(0, totalDailyKwh - trackedRootKwh) : null;
     const baseTotalForPct = Math.max(totalWatts, trackedRootWatts, 1);
@@ -2756,7 +2761,7 @@ class RealtimePowerCard extends HTMLElement {
 }
 
 // ==========================================
-// VISUAL GUI EDITOR (v1.0.3)
+// VISUAL GUI EDITOR (v1.0.4)
 // ==========================================
 class RealtimePowerCardEditor extends HTMLElement {
   constructor() {
@@ -3770,7 +3775,7 @@ if (!window.customCards.some((c) => c.type === "realtime-power-card")) {
   window.customCards.push({
     type: "realtime-power-card",
     name: "Realtime Power Card (Energy Panel)",
-    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.3).",
+    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.4).",
     preview: true
   });
 }
