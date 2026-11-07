@@ -1,12 +1,12 @@
 /**
  * Realtime Power Card for Home Assistant
- * Version: 1.0.4
+ * Version: 1.0.5
  * Author: HavenFlow
  * License: MIT
  * Repository: https://github.com/HavenFlow/realtime-power-card
  */
 
-const CARD_VERSION = "1.0.4";
+const CARD_VERSION = "1.0.5";
 
 console.info(
   `%c ⚡ REALTIME-POWER-CARD %c v${CARD_VERSION} `,
@@ -32,7 +32,9 @@ const TRANSLATIONS = {
       sankey_h: "Sankey Chart – Horizontal (Left → Right)",
       sankey_v: "Sankey Chart – Vertical (Top → Bottom)",
       total_entity: "Total Power Entity (type to search, empty = auto from Energy Panel)",
+      total_energy_entity: "Daily Energy Entity (empty = auto-match the total power device)",
       search_entity_placeholder: "Type to search entity (e.g. socket, power)...",
+      search_energy_entity_placeholder: "Type to search energy entity (e.g. energy, kWh)...",
       clear_entity: "Clear",
       auto_energy: "Auto-sync devices from HA Energy Dashboard",
       show_daily_kwh_devices: "Show daily energy sum (kWh) next to devices",
@@ -162,7 +164,9 @@ const TRANSLATIONS = {
       sankey_h: "Wykres Sankey – Poziomy (Lewo → Prawo)",
       sankey_v: "Wykres Sankey – Pionowy (Góra → Dół)",
       total_entity: "Encja całkowitego poboru mocy (wpisz fragment, puste = auto z Panelu Energii)",
+      total_energy_entity: "Encja energii do sumy dziennej (puste = automatyczne dopasowanie do urządzenia mocy)",
       search_entity_placeholder: "Wpisz aby wyszukać encję (np. socket, power, silka)...",
+      search_energy_entity_placeholder: "Wpisz aby wyszukać encję energii (np. energy, kWh)...",
       clear_entity: "Wyczyść",
       auto_energy: "Pobieraj urządzenia automatycznie z Panelu Energii",
       show_daily_kwh_devices: "Pokazuj dzienną sumę zużycia (kWh) przy urządzeniach",
@@ -298,6 +302,7 @@ const DEFAULT_CONFIG = {
   title: "",
   chart_type: "bar",
   total_power_entity: "",
+  total_energy_entity: "",
   auto_from_energy_panel: true,
   show_daily_kwh_devices: true,
   show_daily_kwh_total: true,
@@ -757,6 +762,13 @@ function isPowerStateObj(stateObj) {
   return dc === "power" || unit === "w" || unit === "kw";
 }
 
+function isEnergyStateObj(stateObj) {
+  if (!stateObj) return false;
+  const dc = (stateObj.attributes.device_class || "").toLowerCase();
+  const unit = (stateObj.attributes.unit_of_measurement || "").toLowerCase();
+  return dc === "energy" || unit === "kwh" || unit === "wh" || unit === "mwh";
+}
+
 function getAllPowerEntities(hass) {
   if (!hass) return [];
   return Object.keys(hass.states)
@@ -913,7 +925,7 @@ function getFallbackStorageEnergySensorPrefs(hass) {
 }
 
 // ==========================================
-// MAIN CARD CLASS (v1.0.4)
+// MAIN CARD CLASS (v1.0.5)
 // ==========================================
 class RealtimePowerCard extends HTMLElement {
   constructor() {
@@ -1088,16 +1100,14 @@ class RealtimePowerCard extends HTMLElement {
     this._lastKwhFetchTs = now;
 
     const statIds = new Set();
-    (this._energyMapping.devices || []).forEach((d) => {
-      if (d.stat_id) statIds.add(d.stat_id);
-    });
-    (this._energyMapping.gridEnergyStats || []).forEach((s) => statIds.add(s));
-
-    const totalEnt = this._getEffectiveTotalEntity();
-    if (totalEnt && this._energyMapping.statToDevice[totalEnt]) {
-      const devId = this._energyMapping.statToDevice[totalEnt];
-      const eList = this._energyMapping.deviceToEnergyEntities[devId] || [];
-      eList.forEach((s) => statIds.add(s));
+    if (wantDevKwh) {
+      (this._energyMapping.devices || []).forEach((d) => {
+        if (d.stat_id) statIds.add(d.stat_id);
+      });
+    }
+    if (wantTotKwh) {
+      const totalEnergyEntity = this._getEffectiveTotalEnergyEntity();
+      if (totalEnergyEntity) statIds.add(totalEnergyEntity);
     }
 
     const idsArray = Array.from(statIds).filter(Boolean);
@@ -1219,6 +1229,44 @@ class RealtimePowerCard extends HTMLElement {
   _getEffectiveTotalEntity() {
     if (this._config.total_power_entity) return this._config.total_power_entity;
     return this._energyMapping ? this._energyMapping.autoTotalEntity : null;
+  }
+
+  _getEffectiveTotalEnergyEntity() {
+    if (this._config.total_energy_entity) return this._config.total_energy_entity;
+
+    const totalPowerEntity = this._getEffectiveTotalEntity();
+    const mapping = this._energyMapping;
+    if (!totalPowerEntity || !mapping) return null;
+
+    const deviceId = mapping.statToDevice?.[totalPowerEntity];
+    const candidates = deviceId ? mapping.deviceToEnergyEntities?.[deviceId] || [] : [];
+    if (candidates.length === 1) return candidates[0];
+
+    if (candidates.length > 1) {
+      const ignoredTokens = new Set(["power", "active", "energy", "consumption", "daily", "total", "kwh", "wh"]);
+      const getTokens = (entityId) => {
+        const stateObj = this._hass.states[entityId];
+        const friendlyName = stateObj?.attributes?.friendly_name || "";
+        const tokens = [...tokenizeStr(entityId), ...tokenizeStr(friendlyName)];
+        return new Set(tokens.filter((token) => !ignoredTokens.has(token)));
+      };
+      const powerTokens = getTokens(totalPowerEntity);
+      const ranked = candidates
+        .map((entityId) => {
+          let score = 0;
+          getTokens(entityId).forEach((token) => {
+            if (powerTokens.has(token)) score++;
+          });
+          return { entityId, score };
+        })
+        .sort((a, b) => b.score - a.score || a.entityId.localeCompare(b.entityId));
+      return ranked[0].entityId;
+    }
+
+    if (totalPowerEntity === mapping.autoTotalEntity && mapping.gridEnergyStats?.length === 1) {
+      return mapping.gridEnergyStats[0];
+    }
+    return null;
   }
 
   _getPowerWatts(entityId) {
@@ -1388,7 +1436,6 @@ class RealtimePowerCard extends HTMLElement {
 
     let trackedRootWatts = 0;
     let trackedRootKwh = 0;
-    let hasAnyKwh = false;
 
     rawNodes.forEach((n) => {
       const isSubDevice = Boolean(n.is_child_manual || (n.parent_id && nodeById.has(n.parent_id)));
@@ -1396,7 +1443,6 @@ class RealtimePowerCard extends HTMLElement {
         trackedRootWatts += n.rawWatts;
         if (n.dailyKwh !== null) {
           trackedRootKwh += n.dailyKwh;
-          hasAnyKwh = true;
         }
       }
     });
@@ -1413,25 +1459,10 @@ class RealtimePowerCard extends HTMLElement {
       }
     }
 
-    const totalEntityDevice = totalEntity && this._energyMapping?.statToDevice?.[totalEntity];
-    const totalEntityEnergyStats = totalEntityDevice
-      ? this._energyMapping.deviceToEnergyEntities?.[totalEntityDevice] || []
-      : [];
-    const sumDailyEnergyStats = (statIds) => {
-      let sum = 0;
-      let found = false;
-      statIds.forEach((statId) => {
-        if (this._dailyKwhMap[statId] !== undefined) {
-          sum += this._dailyKwhMap[statId];
-          found = true;
-        }
-      });
-      return found ? sum : null;
-    };
-
-    const gridKwh = sumDailyEnergyStats(this._energyMapping?.gridEnergyStats || []);
-    const totalEntityKwh = sumDailyEnergyStats(totalEntityEnergyStats);
-    const totalDailyKwh = gridKwh ?? totalEntityKwh ?? (hasAnyKwh ? trackedRootKwh : null);
+    const totalEnergyEntity = this._getEffectiveTotalEnergyEntity();
+    const totalDailyKwh = totalEnergyEntity && this._dailyKwhMap[totalEnergyEntity] !== undefined
+      ? this._dailyKwhMap[totalEnergyEntity]
+      : null;
 
     const otherDailyKwh = totalDailyKwh !== null && totalDailyKwh > trackedRootKwh ? Math.max(0, totalDailyKwh - trackedRootKwh) : null;
     const baseTotalForPct = Math.max(totalWatts, trackedRootWatts, 1);
@@ -2761,7 +2792,7 @@ class RealtimePowerCard extends HTMLElement {
 }
 
 // ==========================================
-// VISUAL GUI EDITOR (v1.0.4)
+// VISUAL GUI EDITOR (v1.0.5)
 // ==========================================
 class RealtimePowerCardEditor extends HTMLElement {
   constructor() {
@@ -2893,12 +2924,13 @@ class RealtimePowerCardEditor extends HTMLElement {
       .slice(0, 24);
   }
 
-  _searchEntities(query, powerEntitiesOnly = true) {
+  _searchEntities(query, entityType = "power") {
     if (!this._hass || !this._hass.states) return [];
     const q = (query || "").toLowerCase().trim();
     const allIds = Object.keys(this._hass.states).filter((eid) => {
       if (!eid.startsWith("sensor.")) return false;
-      if (powerEntitiesOnly) return isPowerStateObj(this._hass.states[eid]);
+      if (entityType === "power") return isPowerStateObj(this._hass.states[eid]);
+      if (entityType === "energy") return isEnergyStateObj(this._hass.states[eid]);
       return true;
     });
 
@@ -2926,7 +2958,7 @@ class RealtimePowerCardEditor extends HTMLElement {
     return scored.slice(0, 35);
   }
 
-  _setupEntitySearchBox(wrapperEl, initialEntityId, onSelectCallback) {
+  _setupEntitySearchBox(wrapperEl, initialEntityId, onSelectCallback, entityType = "power") {
     if (!wrapperEl) return;
     const inputEl = wrapperEl.querySelector(".entity-search-input");
     const dropdownEl = wrapperEl.querySelector(".entity-search-dropdown");
@@ -2941,7 +2973,7 @@ class RealtimePowerCardEditor extends HTMLElement {
     inputEl.value = formatDisplay(initialEntityId);
 
     const renderDropdown = (filterText) => {
-      const matches = this._searchEntities(filterText, true);
+      const matches = this._searchEntities(filterText, entityType);
       if (matches.length === 0) {
         dropdownEl.classList.remove("open");
         return;
@@ -3112,6 +3144,15 @@ class RealtimePowerCardEditor extends HTMLElement {
           <label>${t("total_entity")}</label>
           <div class="entity-search-wrap" id="total_entity_search">
             <input type="text" class="entity-search-input" placeholder="${t("search_entity_placeholder")}" autocomplete="off">
+            <button type="button" class="entity-clear-btn">${t("clear_entity")}</button>
+            <div class="entity-search-dropdown"></div>
+          </div>
+        </div>
+
+        <div class="row">
+          <label>${t("total_energy_entity")}</label>
+          <div class="entity-search-wrap" id="total_energy_entity_search">
+            <input type="text" class="entity-search-input" placeholder="${t("search_energy_entity_placeholder")}" autocomplete="off">
             <button type="button" class="entity-clear-btn">${t("clear_entity")}</button>
             <div class="entity-search-dropdown"></div>
           </div>
@@ -3511,6 +3552,12 @@ class RealtimePowerCardEditor extends HTMLElement {
       this._config.total_power_entity,
       (chosenEid) => this._updateConfig({ total_power_entity: chosenEid })
     );
+    this._setupEntitySearchBox(
+      this.shadowRoot.getElementById("total_energy_entity_search"),
+      this._config.total_energy_entity,
+      (chosenEid) => this._updateConfig({ total_energy_entity: chosenEid }),
+      "energy"
+    );
 
     this.shadowRoot.getElementById("cfg_title").addEventListener("change", (e) => this._updateConfig({ title: e.target.value }));
     this.shadowRoot.getElementById("cfg_hdr_top_offset").addEventListener("change", (e) => this._updateConfig({ header_top_offset: Number(e.target.value) }));
@@ -3775,7 +3822,7 @@ if (!window.customCards.some((c) => c.type === "realtime-power-card")) {
   window.customCards.push({
     type: "realtime-power-card",
     name: "Realtime Power Card (Energy Panel)",
-    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.4).",
+    description: "Displays real-time power (W/kW), daily energy (kWh), and a Header History Equalizer/Line chart with 3D Solid Prism Bar, Pie, Donut & Sankey diagrams (v1.0.5).",
     preview: true
   });
 }

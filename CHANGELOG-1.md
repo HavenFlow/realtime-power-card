@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-11-07
+### Added
+- **Selectable Total Energy Entity:** The header now reports the selected energy sensor's change since local midnight. The editor can select an energy sensor directly, or automatically match one from the device associated with the total power sensor.
+
+### Fixed
+- **Total Daily Energy Calculation:** The header no longer derives total daily energy by summing device sensors, which omitted untracked consumption.
+
 ## [1.0.4] - 2026-11-07
 ### Fixed
 - **Total Daily Energy in Header:** Prefer Energy Dashboard grid statistics, then use daily energy statistics linked to the selected total power entity, and finally tracked device totals. Valid zero values are retained, and grid totals are no longer discarded merely because they are lower than tracked device sums.
